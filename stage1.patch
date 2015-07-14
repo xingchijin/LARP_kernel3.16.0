@@ -1,0 +1,880 @@
+--- linux-lts-utopic-3.16.0/include/net/larp.h	1969-12-31 16:00:00.000000000 -0800
++++ linux-lts-utopic-3.16.0/include/net/larp.h	2015-07-14 14:34:03.587918833 -0700
+@@ -0,0 +1,56 @@
++
++#include <net/arp.h>
++
++
++struct larp_hw_hdr
++{
++  __be16          ar_hrd;         /* format of hardware address   */
++  unsigned char   ar_hln;         /* length of hardware address   */
++  unsigned char   mbz;           /* dummy   */
++
++#if 0
++  unsigned char           ar_sha[ETH_ALEN];
++#endif
++
++}__packed;
++
++struct larp_label_hdr
++{
++#if defined(__BIG_ENDIAN_BITFIELD)
++  unsigned char     ar_lvalid:1,
++    ar_label_h7:7;
++
++  unsigned char     ar_label_mid;
++
++  unsigned char     ar_label_5:5,
++    ar_entropy:1,
++    mbz:2;
++
++#elif defined(__LITTLE_ENDIAN_BITFIELD)
++  unsigned char     ar_label_h7:7,
++    ar_lvalid:1;
++
++  unsigned char      ar_label_mid;
++  unsigned char      mbz:2,
++    ar_entropy:1,
++    ar_label_5:5;
++#endif
++
++  __be32 ar_metric;
++  __be32 ar_ident;
++
++
++}__packed;
++
++
++#define MPLS_LABEL_HDR_SIZE (sizeof(struct larp_hw_hdr) + sizeof(struct larp_label_hdr) + ETH_ALEN)
++
++/* Utility functions */
++
++static inline int larp_hdr_len(struct net_device *dev)
++{
++  /* ARP header, plus 2 device addresses, plus 2 IP addresses. */
++  return sizeof(struct arphdr) + (sizeof(u32) + MPLS_LABEL_HDR_SIZE)* 2 ;
++}
++
++
+--- linux-lts-utopic-3.16.0/include/net/neighbour.h	2014-08-03 15:25:02.000000000 -0700
++++ linux-lts-utopic-3.16.0/include/net/neighbour.h	2015-07-14 14:34:03.587918833 -0700
+@@ -154,6 +154,7 @@ struct neighbour {
+ 	const struct neigh_ops	*ops;
+ 	struct rcu_head		rcu;
+ 	struct net_device	*dev;
++        void                    *opaque_data;
+ 	u8			primary_key[0];
+ };
+ 
+@@ -236,6 +237,7 @@ static inline void *neighbour_priv(const
+ #define NEIGH_UPDATE_F_OVERRIDE			0x00000001
+ #define NEIGH_UPDATE_F_WEAK_OVERRIDE		0x00000002
+ #define NEIGH_UPDATE_F_OVERRIDE_ISROUTER	0x00000004
++#define NEIGH_UPDATE_F_IS_LARP           	0x00000008
+ #define NEIGH_UPDATE_F_ISROUTER			0x40000000
+ #define NEIGH_UPDATE_F_ADMIN			0x80000000
+ 
+@@ -255,7 +257,7 @@ static inline struct neighbour *neigh_cr
+ }
+ void neigh_destroy(struct neighbour *neigh);
+ int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb);
+-int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new, u32 flags);
++int neigh_update(struct neighbour *neigh, u8 *lladdr, u8 new, u32 flags);
+ void __neigh_set_probe_once(struct neighbour *neigh);
+ void neigh_changeaddr(struct neigh_table *tbl, struct net_device *dev);
+ int neigh_ifdown(struct neigh_table *tbl, struct net_device *dev);
+--- linux-lts-utopic-3.16.0/include/uapi/linux/if_arp.h	2014-08-03 15:25:02.000000000 -0700
++++ linux-lts-utopic-3.16.0/include/uapi/linux/if_arp.h	2015-07-14 14:34:03.587918833 -0700
+@@ -41,7 +41,7 @@
+ #define	ARPHRD_IEEE1394	24		/* IEEE 1394 IPv4 - RFC 2734	*/
+ #define ARPHRD_EUI64	27		/* EUI-64                       */
+ #define ARPHRD_INFINIBAND 32		/* InfiniBand			*/
+-
++#define ARPHRD_LARP ARPHRD_SLIP         /*temporary assignment for LARP */
+ /* Dummy types for non ARP hardware */
+ #define ARPHRD_SLIP	256
+ #define ARPHRD_CSLIP	257
+@@ -95,6 +95,7 @@
+ #define ARPHRD_IP6GRE	823		/* GRE over IPv6		*/
+ #define ARPHRD_NETLINK	824		/* Netlink header		*/
+ #define ARPHRD_6LOWPAN	825		/* IPv6 over LoWPAN             */
++#define ARPHRD_MPLS_TUNNEL 899          /* MPLS Tunnel Interface        */
+ 
+ #define ARPHRD_VOID	  0xFFFF	/* Void type, nothing is known */
+ #define ARPHRD_NONE	  0xFFFE	/* zero header length */
+--- linux-lts-utopic-3.16.0/include/uapi/linux/if.h	2014-08-03 15:25:02.000000000 -0700
++++ linux-lts-utopic-3.16.0/include/uapi/linux/if.h	2015-07-14 14:34:03.587918833 -0700
+@@ -108,6 +108,7 @@ enum net_device_flags {
+ #define IFF_LOWER_UP			IFF_LOWER_UP
+ #define IFF_DORMANT			IFF_DORMANT
+ #define IFF_ECHO			IFF_ECHO
++#define IFF_LARP			0x80000
+ 
+ #define IFF_VOLATILE	(IFF_LOOPBACK|IFF_POINTOPOINT|IFF_BROADCAST|IFF_ECHO|\
+ 		IFF_MASTER|IFF_SLAVE|IFF_RUNNING|IFF_LOWER_UP|IFF_DORMANT)
+--- linux-lts-utopic-3.16.0/net/core/dev.c	2015-07-14 14:43:33.000000000 -0700
++++ linux-lts-utopic-3.16.0/net/core/dev.c	2015-07-14 14:34:03.587918833 -0700
+@@ -5493,7 +5493,7 @@ int __dev_change_flags(struct net_device
+ 
+ 	dev->flags = (flags & (IFF_DEBUG | IFF_NOTRAILERS | IFF_NOARP |
+ 			       IFF_DYNAMIC | IFF_MULTICAST | IFF_PORTSEL |
+-			       IFF_AUTOMEDIA)) |
++			       IFF_AUTOMEDIA | IFF_LARP)) |
+ 		     (dev->flags & (IFF_UP | IFF_VOLATILE | IFF_PROMISC |
+ 				    IFF_ALLMULTI));
+ 
+--- linux-lts-utopic-3.16.0/net/core/neighbour.c	2014-08-03 15:25:02.000000000 -0700
++++ linux-lts-utopic-3.16.0/net/core/neighbour.c	2015-07-14 14:39:24.515903381 -0700
+@@ -40,6 +40,7 @@
+ #include <linux/log2.h>
+ #include <linux/inetdevice.h>
+ #include <net/addrconf.h>
++#include <net/larp.h>
+ 
+ #define DEBUG
+ #define NEIGH_DEBUG 1
+@@ -94,6 +95,190 @@ static const struct file_operations neig
+ 
+ static DEFINE_RWLOCK(neigh_tbl_lock);
+ 
++
++
++/* LARP : TODO Remove and make as module */
++
++
++
++struct larp_skb_parm {
++  unsigned int  label:20;
++  unsigned int  ttl:8;
++  unsigned int  exp:3;
++  unsigned int  bos:1;
++};
++
++#define LARPCB(skb) ((struct larp_skb_parm*)((skb)->cb))
++int get_label_from_neigh(void *opaque);
++
++int larp_label_push (struct sk_buff **skb)
++{
++  struct sk_buff *o = NULL;
++  struct sk_buff *n = NULL;
++  u32 shim;
++
++  o = *skb;
++
++#define MPLS_SHIM_SIZE 4
++
++ try_again:
++  if(o->data - o->head >= MPLS_SHIM_SIZE) {
++    /*
++     * if we have room between data and end of mac_header
++     * just shift the data,transport_header,network_header pointers and use the room
++     * this would happen if we had a pop previous to this
++     */
++    printk(KERN_DEBUG "Pushing MPLS_SHIM\n");
++    skb_push(o,MPLS_SHIM_SIZE);
++    o->transport_header -= MPLS_SHIM_SIZE;
++    o->network_header -= MPLS_SHIM_SIZE;
++  } else {
++    /*
++     * we have no room in the inn, go ahead and create a new sk_buff
++     * with enough extra room for one shim
++     */
++   
++    if(!(n = skb_realloc_headroom(o, 32))) {
++      return 1;
++    }
++
++    kfree_skb(o);
++    o = *skb = n;
++
++    goto try_again;
++  }
++  /*
++   * no matter what layer 2 we are on, we need the shim! (mpls-encap RFC)
++   */
++  
++  printk(KERN_ERR "Dumping label: %d exp: %d bos : %d ttl: %d\n",
++	 (LARPCB(o)->label),(LARPCB(o)->exp & 0x7),(LARPCB(o)->bos & 0x1),(LARPCB(o)->ttl & 0xFF));
++
++  shim = htonl(((LARPCB(o)->label & 0xFFFFF) << 12) |
++	       ((LARPCB(o)->exp & 0x7) << 9) |
++	       ((LARPCB(o)->bos & 0x1) << 8) |
++	       (LARPCB(o)->ttl & 0xFF));
++  
++  memmove(o->data,&shim,MPLS_SHIM_SIZE);
++
++  return 0;
++}
++
++
++int 
++larp_build_pkt_finish(struct sk_buff **pskb, int mtu)
++{
++  struct sk_buff *skb = *pskb;
++
++  int retval = 0;
++
++  skb->protocol = htons(ETH_P_MPLS_UC);
++
++
++  if (!skb_is_gso(skb) && (skb->len > skb_dst(skb)->dev->mtu)) {
++
++    printk(KERN_ERR "MPLS: packet exceeded MTU %d > %d (%d)\n", skb->len,
++	   skb->dev->mtu, mtu);
++
++    retval = 1;
++    goto mpls_finish_exit;
++  }
++
++  if (unlikely(skb->protocol &&
++	       (skb_headroom(skb) < LL_RESERVED_SPACE(skb_dst(skb)->dev)) &&
++	       skb_dst(skb)->dev->header_ops)) {
++    struct sk_buff *skb2;
++
++    printk(KERN_ERR "allocing more headroom\n");
++    if (!(skb2 = skb_realloc_headroom(skb,
++				      LL_RESERVED_SPACE(skb_dst(skb)->dev)))) {
++      retval = 1;
++      printk(KERN_ERR "failed alloc'ing more headroom\n");
++      goto mpls_finish_exit;
++    }
++
++    if (skb->sk)
++      skb_set_owner_w(skb2, skb->sk);
++    kfree_skb(skb);
++    skb = skb2;
++  }
++
++  *pskb = skb;
++
++ mpls_finish_exit:
++  return retval;
++}
++
++
++int larp_build_pkt(struct sk_buff *skb)
++{
++  int mtu;
++
++  if (unlikely(!skb_dst(skb))) {
++    printk(KERN_ERR "MPLS: No dst in skb\n");
++    goto mpls_output_drop;
++  }
++
++
++  skb = skb_share_check(skb, GFP_ATOMIC);
++  if (unlikely(!skb)) {
++    printk(KERN_ERR "MPLS: unable to share skb\n");
++    goto mpls_output_drop;
++  }
++
++  if (skb->ip_summed == CHECKSUM_COMPLETE) {
++    if (skb_checksum_help(skb)){
++      printk(KERN_ERR "MPLS: checksumcond  drop\n");
++      goto mpls_output_drop;
++    }
++  }
++
++  struct neighbour* nei ;
++  nei= dst_neigh_lookup_skb(skb_dst(skb),skb);
++
++
++  LARPCB(skb)->label = get_label_from_neigh(nei->opaque_data);
++ // LARPCB(skb)->label = get_label_from_neigh(skb_dst(skb)->neighbour->opaque_data);
++
++  if (!(LARPCB(skb)->label < 16)) {  /* TODO do not use magic number */
++      LARPCB(skb)->ttl = 255; // for now. Need to copy from ip
++      LARPCB(skb)->exp = 0;
++      LARPCB(skb)->bos = 1;
++
++      mtu = skb_dst(skb)->dev->mtu - 4;
++
++      if (skb_cow(skb, SKB_DATA_ALIGN(skb->mac_len + 4))) {
++	  printk(KERN_ERR "MPLS: skb_cow  drop\n");
++	  goto mpls_output_drop;
++      }
++
++      if(larp_label_push(&skb)){
++	  printk(KERN_ERR "MPLS:larp_label_push  drop\n");
++	  goto mpls_output_drop;
++      }
++
++      if(larp_build_pkt_finish(&skb, mtu)){
++	  printk(KERN_ERR "MPLS mpls_build_pkt_finish  drop\n");
++	  goto mpls_output_drop;
++      }
++  }
++
++  return 0;
++
++
++ mpls_output_drop:
++  kfree_skb(skb);
++  return 1;
++
++}
++
++
++
++
++
++/********************************************************************************************/
++
++
+ static int neigh_blackhole(struct neighbour *neigh, struct sk_buff *skb)
+ {
+ 	kfree_skb(skb);
+@@ -296,6 +481,7 @@ static struct neighbour *neigh_alloc(str
+ 	n->output	  = neigh_blackhole;
+ 	seqlock_init(&n->hh.hh_lock);
+ 	n->parms	  = neigh_parms_clone(&tbl->parms);
++        n->opaque_data    = NULL;//LARP
+ 	setup_timer(&n->timer, neigh_timer_handler, (unsigned long)n);
+ 
+ 	NEIGH_CACHE_STAT_INC(tbl, allocs);
+@@ -721,6 +907,10 @@ void neigh_destroy(struct neighbour *nei
+ 	dev_put(dev);
+ 	neigh_parms_put(neigh->parms);
+ 
++	if(neigh->opaque_data){
++	  kfree(neigh->opaque_data);
++	  neigh->opaque_data = NULL;
++	}
+ 	neigh_dbg(2, "neigh %p is destroyed\n", neigh);
+ 
+ 	atomic_dec(&neigh->tbl->entries);
+@@ -1078,7 +1268,69 @@ static void neigh_update_hhs(struct neig
+    Caller MUST hold reference count on the entry.
+  */
+ 
+-int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
++#if 0
++struct larp_hw_hdr
++{
++  __be16          ar_hrd;         /* format of hardware address   */
++  unsigned char   ar_hln;         /* length of hardware address   */
++  unsigned char   mbz;           /* dummy   */
++
++#if 0
++  unsigned char           ar_sha[ETH_ALEN];  
++#endif
++
++}__packed;
++
++struct larp_label_hdr
++{
++#if defined(__BIG_ENDIAN_BITFIELD)
++  unsigned char     ar_lvalid:1,
++                    ar_label_h7:7;
++
++  unsigned char     ar_label_mid;
++  
++  unsigned char     ar_label_5:5,
++                    ar_entropy:1,
++                    mbz:2;
++
++#elif defined(__LITTLE_ENDIAN_BITFIELD)
++    unsigned char     ar_label_h7:7,
++                      ar_lvalid:1;
++
++   unsigned char      ar_label_mid;
++   unsigned char      mbz:2,
++                     ar_entropy:1,
++                     ar_label_5:5;               
++#endif
++
++  __be32 ar_metric;
++  __be32 ar_ident;
++
++
++}__packed;
++
++#endif
++static void myhexdump(void *ptr, int buflen) {
++  unsigned char *buf = (unsigned char*)ptr;
++  int i, j;
++  printk(KERN_DEBUG " Dumping arp payload\n");
++  for (i=0; i<buflen; i+=16) {
++    printk(KERN_DEBUG "%06x: ", i);
++    for (j=0; j<16; j++)
++      if (i+j < buflen)
++        printk(KERN_DEBUG "%02x ", buf[i+j]);
++      else
++        printk(KERN_DEBUG "   ");
++    printk(KERN_DEBUG " ");
++    printk(KERN_DEBUG "\n");
++  }
++}
++
++
++void larp_update_neighbour(struct neighbour *neigh, char valid, int label, int metric, char entropy, int instance_ident);
++
++
++int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
+ 		 u32 flags)
+ {
+ 	u8 old;
+@@ -1086,6 +1338,7 @@ int neigh_update(struct neighbour *neigh
+ 	int notify = 0;
+ 	struct net_device *dev;
+ 	int update_isrouter = 0;
++        u8 * lladdr = __lladdr;
+ 
+ 	write_lock_bh(&neigh->lock);
+ 
+@@ -1097,6 +1350,7 @@ int neigh_update(struct neighbour *neigh
+ 	    (old & (NUD_NOARP | NUD_PERMANENT)))
+ 		goto out;
+ 
++	printk(KERN_ERR "neigh_update: Enter\n");
+ 	if (!(new & NUD_VALID)) {
+ 		neigh_del_timer(neigh);
+ 		if (old & NUD_CONNECTED)
+@@ -1109,9 +1363,55 @@ int neigh_update(struct neighbour *neigh
+ 			neigh_invalidate(neigh);
+ 			notify = 1;
+ 		}
++		printk(KERN_ERR "neigh_update: new & NUD_VALID\n");
+ 		goto out;
+ 	}
+ 
++	if (flags & NEIGH_UPDATE_F_IS_LARP) {
++
++	  struct larp_hw_hdr * hw_hdr = NULL;
++	  struct larp_label_hdr *label_hdr = NULL;
++
++	  unsigned char *hdr_ptr;
++	  int htype = 0;
++	  int  hlen = 0;
++	  int label = -1;
++	  int metric = 0;
++	  char entropy_cap = 0;
++	  char valid = 0;
++	  int instance_ident = -1;
++	  
++
++	  hw_hdr = (struct larp_hw_hdr *)__lladdr;
++          printk(KERN_ERR "hw_hdr : %p\n",hw_hdr);
++	  htype = hw_hdr->ar_hrd;
++	  hlen = hw_hdr->ar_hln;
++	  hdr_ptr = lladdr = (unsigned char *)(hw_hdr+1);
++	  printk(KERN_ERR "hdr_ptr : %p\n",hdr_ptr);
++
++	  hdr_ptr += hlen;
++	  printk(KERN_ERR "hdr_ptr : %p hlen: %d\n",hdr_ptr,hlen);
++
++
++	  // hdr_ptr should now point to label part
++	  label_hdr = (struct larp_label_hdr *)hdr_ptr;
++	  printk(KERN_ERR "label_hdr : %p\n",label_hdr);
++	  printk(KERN_ERR " hi  %d mid %d lo %d\n",(label_hdr->ar_label_h7),(label_hdr->ar_label_mid),(label_hdr->ar_label_5));
++	  label = (label_hdr->ar_label_h7 << 13) + (label_hdr->ar_label_mid << 5) + (label_hdr->ar_label_5);
++	  metric = label_hdr->ar_metric;
++          entropy_cap = label_hdr->ar_entropy;
++          valid = label_hdr->ar_lvalid;
++          instance_ident = label_hdr->ar_ident;
++
++	  myhexdump(__lladdr,21);
++
++	  printk(KERN_ERR "LARP:: label: %d metric: %d valid : %d instance ident: %d entr: %d\n",
++		 label, metric, valid, instance_ident, entropy_cap);
++
++	  larp_update_neighbour(neigh, valid, label, metric, entropy_cap, instance_ident);
++
++	}
++
+ 	/* Compare new lladdr with cached one */
+ 	if (!dev->addr_len) {
+ 		/* First case: device needs no address. */
+@@ -1122,6 +1422,7 @@ int neigh_update(struct neighbour *neigh
+ 		   - compare new & old
+ 		   - if they are different, check override flag
+ 		 */
++	  printk(KERN_ERR "neigh_update lladdr\n");
+ 		if ((old & NUD_VALID) &&
+ 		    !memcmp(lladdr, neigh->ha, dev->addr_len))
+ 			lladdr = neigh->ha;
+@@ -1129,6 +1430,7 @@ int neigh_update(struct neighbour *neigh
+ 		/* No address is supplied; if we know something,
+ 		   use it, otherwise discard the request.
+ 		 */
++	  printk(KERN_ERR "neigh_update no address\n");
+ 		err = -EINVAL;
+ 		if (!(old & NUD_VALID))
+ 			goto out;
+@@ -1171,6 +1473,7 @@ int neigh_update(struct neighbour *neigh
+ 						 0)));
+ 		neigh->nud_state = new;
+ 		notify = 1;
++		printk(KERN_ERR "neigh_add_timer added\n");
+ 	}
+ 
+ 	if (lladdr != neigh->ha) {
+@@ -1182,6 +1485,7 @@ int neigh_update(struct neighbour *neigh
+ 			neigh->confirmed = jiffies -
+ 				      (NEIGH_VAR(neigh->parms, BASE_REACHABLE_TIME) << 1);
+ 		notify = 1;
++		printk(KERN_ERR "neigh addr changed\n");
+ 	}
+ 	if (new == old)
+ 		goto out;
+@@ -1194,6 +1498,7 @@ int neigh_update(struct neighbour *neigh
+ 
+ 		/* Again: avoid dead loop if something went wrong */
+ 
++		printk(KERN_ERR "neigh_update: arp queueu processing\n");
+ 		while (neigh->nud_state & NUD_VALID &&
+ 		       (skb = __skb_dequeue(&neigh->arp_queue)) != NULL) {
+ 			struct dst_entry *dst = skb_dst(skb);
+@@ -1316,6 +1621,17 @@ int neigh_resolve_output(struct neighbou
+ 	if (!dst)
+ 		goto discard;
+ 
++  struct neighbour* nei ;
++  nei= dst_neigh_lookup_skb(skb_dst(skb),skb);
++
++	if(nei->opaque_data && nei->dev->flags&IFF_LARP){
++	  printk(KERN_DEBUG "pkt_send neigh_resolve_output called \n");
++	  if(larp_build_pkt(skb)){
++	    rc = -EINVAL;
++	    goto out;
++	  }
++	}
++
+ 	if (!neigh_event_send(neigh, skb)) {
+ 		int err;
+ 		struct net_device *dev = neigh->dev;
+@@ -1354,7 +1670,16 @@ int neigh_connected_output(struct neighb
+ 	struct net_device *dev = neigh->dev;
+ 	unsigned int seq;
+ 	int err;
+-
++        //struct dst_entry* dst=skb_dst(skb);
++        //struct neighbour* nei ;
++        //nei= dst_neigh_lookup_skb(skb_dst(skb),skb);
++
++	if(neigh->opaque_data && neigh->dev->flags&IFF_LARP){
++	  printk(KERN_DEBUG "pkt_send neigh_connected_output called\n");
++          if(larp_build_pkt(skb)){
++	    return EINVAL;
++          }
++        }
+ 	do {
+ 		__skb_pull(skb, skb_network_offset(skb));
+ 		seq = read_seqbegin(&neigh->ha_lock);
+--- linux-lts-utopic-3.16.0/net/ipv4/arp.c	2014-08-03 15:25:02.000000000 -0700
++++ linux-lts-utopic-3.16.0/net/ipv4/arp.c	2015-07-14 14:39:24.515903381 -0700
+@@ -118,6 +118,7 @@
+ 
+ #include <linux/netfilter_arp.h>
+ 
++#include <net/larp.h>
+ /*
+  *	Interface to generic neighbour cache.
+  */
+@@ -186,6 +187,35 @@ struct neigh_table arp_tbl = {
+ 	.gc_thresh2	= 512,
+ 	.gc_thresh3	= 1024,
+ };
++/* LARP functions & data structures*/
++
++struct larp_data{
++  char valid;
++  char entropy;
++  int label;
++  int metric;
++  int ident;
++};
++
++
++int get_label_from_neigh(void *opaque)
++{
++  struct larp_data *ldata = NULL;
++  ldata = (struct larp_data *)opaque;
++  return ldata->label;
++}
++
++void larp_update_neighbour(struct neighbour *neigh, char valid, int label, int metric, char entropy, int instance_ident)
++{
++  struct larp_data *ldata = NULL;
++  ldata = (struct larp_data *)neigh->opaque_data;
++  ldata->valid = valid;
++  ldata->label = label;
++  ldata->metric = metric;
++  ldata->entropy = entropy;
++  ldata->ident = instance_ident; 
++  return;
++}
+ EXPORT_SYMBOL(arp_tbl);
+ 
+ int arp_mc_map(__be32 addr, u8 *haddr, struct net_device *dev, int dir)
+@@ -310,6 +340,9 @@ static int arp_constructor(struct neighb
+ 			neigh->output = neigh->ops->connected_output;
+ 		else
+ 			neigh->output = neigh->ops->output;
++
++		if(dev->flags&(IFF_LARP))
++		  neigh->opaque_data = kmalloc(sizeof(struct larp_data), GFP_ATOMIC);
+ 	}
+ 	return 0;
+ }
+@@ -568,6 +601,108 @@ static inline int arp_fwd_pvlan(struct i
+  *	Interface to link layer: send routine and receive handler.
+  */
+ 
++
++/*
++ *	Create an larp packet. If (dest_hw == NULL), we create a broadcast
++ *	message.
++ */
++struct sk_buff *larp_create(int type, int ptype, __be32 dest_ip,
++			   struct net_device *dev, __be32 src_ip,
++			   const unsigned char *dest_hw,
++			   const unsigned char *src_hw,
++			   const unsigned char *target_hw,
++			   int label)
++{
++
++
++
++  struct sk_buff *skb;
++  struct arphdr *arp;
++  unsigned char *arp_ptr;
++  struct larp_hw_hdr *hw_hdr;
++  struct larp_label_hdr *label_hdr;
++
++  int hlen = LL_RESERVED_SPACE(dev);
++  int tlen = dev->needed_tailroom;
++  /*
++   *      Allocate a buffer
++   */
++
++  skb = alloc_skb(larp_hdr_len(dev) + hlen+tlen, GFP_ATOMIC);
++  //skb = alloc_skb(larp_hdr_len(dev) + LL_ALLOCATED_SPACE(dev), GFP_ATOMIC);
++  if (skb == NULL)
++    return NULL;
++
++  skb_reserve(skb, LL_RESERVED_SPACE(dev));
++  skb_reset_network_header(skb);
++  arp = (struct arphdr *) skb_put(skb, larp_hdr_len(dev));
++  skb->dev = dev;
++  skb->protocol = htons(ETH_P_ARP);
++  if (src_hw == NULL)
++    src_hw = dev->dev_addr;
++  if (dest_hw == NULL)
++    dest_hw = dev->broadcast;
++
++  /*
++   *      Fill the device header for the ARP frame
++   */
++  if (dev_hard_header(skb, dev, ptype, dest_hw, src_hw, skb->len) < 0)
++    goto out;
++
++
++
++
++  /* Arp header */
++  arp->ar_hrd = htons(ARPHRD_LARP);
++  arp->ar_pro = htons(ETH_P_IP);
++  arp->ar_hln = MPLS_LABEL_HDR_SIZE;
++  arp->ar_pln = 4;
++  arp->ar_op = htons(type);
++  arp_ptr=(unsigned char *)(arp+1);
++
++  /* Sender hardware address -- fixed hw part*/
++
++  hw_hdr = (struct larp_hw_hdr *)arp_ptr;
++  hw_hdr->ar_hrd = htons(dev->type);
++  hw_hdr->ar_hln = dev->addr_len;
++  hw_hdr->mbz = 0;
++  arp_ptr += sizeof(struct larp_hw_hdr);
++
++
++  /* Sender hardware address -- variable hw address part*/
++
++  memcpy(arp_ptr, src_hw, dev->addr_len);
++  arp_ptr += dev->addr_len;
++
++  /* Sender hardware address -- label part*/
++
++  label_hdr = (struct larp_label_hdr *)arp_ptr;
++  memset((void *)label_hdr,0,sizeof(struct larp_label_hdr));
++  arp_ptr+= sizeof(struct larp_label_hdr);
++
++  /* source protocol address */
++  memcpy(arp_ptr, &src_ip, 4);
++  arp_ptr += 4;
++
++
++  /* target hardware address */
++
++  memset(arp_ptr, 0, MPLS_LABEL_HDR_SIZE);
++  arp_ptr += MPLS_LABEL_HDR_SIZE;
++
++  /* target protocol address */
++  memcpy(arp_ptr, &dest_ip, 4);
++
++
++  return skb;
++
++
++out:
++	kfree_skb(skb);
++	return NULL;
++}
++
++
+ /*
+  *	Create an arp packet. If (dest_hw == NULL), we create a broadcast
+  *	message.
+@@ -584,6 +719,11 @@ struct sk_buff *arp_create(int type, int
+ 	int hlen = LL_RESERVED_SPACE(dev);
+ 	int tlen = dev->needed_tailroom;
+ 
++	if ((type == ARPOP_REQUEST) && (dev->flags & IFF_LARP)){
++	  return larp_create(type,ptype,dest_ip,dev,src_ip,
++			     dest_hw,src_hw,target_hw,0);
++	}
++
+ 	/*
+ 	 *	Allocate a buffer
+ 	 */
+@@ -620,6 +760,11 @@ struct sk_buff *arp_create(int type, int
+ 	 */
+ 	switch (dev->type) {
+ 	default:
++	  #if 0
++		if (dev->flags & IFF_LARP) /* Send LARP request : Need tp change the format TODO*/
++		 arp->ar_hrd = htons(ARPHRD_LARP);
++		 else
++         #endif
+ 		arp->ar_hrd = htons(dev->type);
+ 		arp->ar_pro = htons(ETH_P_IP);
+ 		break;
+@@ -684,6 +829,7 @@ EXPORT_SYMBOL(arp_create);
+  */
+ void arp_xmit(struct sk_buff *skb)
+ {
++  printk(KERN_ERR "arp_xmit finished\n");
+ 	/* Send it off, maybe filter it using firewalling first.  */
+ 	NF_HOOK(NFPROTO_ARP, NF_ARP_OUT, skb, NULL, skb->dev, dev_queue_xmit);
+ }
+@@ -706,6 +852,8 @@ void arp_send(int type, int ptype, __be3
+ 	if (dev->flags&IFF_NOARP)
+ 		return;
+ 
++
++	//printk(KERN_ERR "arp_send: %d.%d.%d.%d -- %d.%d.%d.%d", NIPQUAD(*((uint32_t*)(&src_ip))), NIPQUAD(*((uint32_t*)(&dest_ip))));
+ 	skb = arp_create(type, ptype, dest_ip, dev, src_ip,
+ 			 dest_hw, src_hw, target_hw);
+ 	if (skb == NULL)
+@@ -733,16 +881,20 @@ static int arp_process(struct sk_buff *s
+ 	struct neighbour *n;
+ 	struct net *net = dev_net(dev);
+ 	bool is_garp = false;
++	unsigned char is_larp = 0;
++	int flags = 0;
+ 
+ 	/* arp_rcv below verifies the ARP header and verifies the device
+ 	 * is ARP'able.
+ 	 */
+ 
++	printk(KERN_ERR "arp_process enter\n");
+ 	if (in_dev == NULL)
+ 		goto out;
+ 
+ 	arp = arp_hdr(skb);
+ 
++	is_larp = (arp->ar_hrd == htons(ARPHRD_LARP));
+ 	switch (dev_type) {
+ 	default:
+ 		if (arp->ar_pro != htons(ETH_P_IP) ||
+@@ -762,7 +914,8 @@ static int arp_process(struct sk_buff *s
+ 		 * or 6 (IEEE 802.2)
+ 		 */
+ 		if ((arp->ar_hrd != htons(ARPHRD_ETHER) &&
+-		     arp->ar_hrd != htons(ARPHRD_IEEE802)) ||
++		     arp->ar_hrd != htons(ARPHRD_IEEE802) &&
++		     !is_larp) ||
+ 		    arp->ar_pro != htons(ETH_P_IP))
+ 			goto out;
+ 		break;
+@@ -789,7 +942,7 @@ static int arp_process(struct sk_buff *s
+  */
+ 	arp_ptr = (unsigned char *)(arp + 1);
+ 	sha	= arp_ptr;
+-	arp_ptr += dev->addr_len;
++	arp_ptr += arp->ar_hln;
+ 	memcpy(&sip, arp_ptr, 4);
+ 	arp_ptr += 4;
+ 	switch (dev_type) {
+@@ -798,9 +951,13 @@ static int arp_process(struct sk_buff *s
+ 		break;
+ #endif
+ 	default:
+-		arp_ptr += dev->addr_len;
++	     arp_ptr += arp->ar_hln;
+ 	}
+ 	memcpy(&tip, arp_ptr, 4);
++
++	//if(dev->flags&(IFF_LARP))
++	 // printk(KERN_ERR "LARP  %d.%d.%d.%d -- %d.%d.%d.%d", NIPQUAD(*((uint32_t*)(&sip))), NIPQUAD(*((uint32_t*)(&tip))));
++
+ /*
+  *	Check for bad requests for 127.x.x.x and requests for multicast
+  *	addresses.  If this is one such, delete it.
+@@ -928,8 +1085,13 @@ static int arp_process(struct sk_buff *s
+ 		if (arp->ar_op != htons(ARPOP_REPLY) ||
+ 		    skb->pkt_type != PACKET_HOST)
+ 			state = NUD_STALE;
+-		neigh_update(n, sha, state,
+-			     override ? NEIGH_UPDATE_F_OVERRIDE : 0);
++
++		flags = (override ? NEIGH_UPDATE_F_OVERRIDE : 0 | is_larp ? NEIGH_UPDATE_F_IS_LARP : 0);
++		if(dev->flags&(IFF_LARP))
++		  printk(KERN_ERR "LARP::  neigh_update called with flags :%d\n",flags);
++		else
++		  printk(KERN_ERR ":  neigh_update called with flags :%d\n",flags);
++		neigh_update(n, sha, state, flags);
+ 		neigh_release(n);
+ 	}
+ 
+@@ -967,7 +1129,7 @@ static int arp_rcv(struct sk_buff *skb,
+ 		goto freeskb;
+ 
+ 	arp = arp_hdr(skb);
+-	if (arp->ar_hln != dev->addr_len || arp->ar_pln != 4)
++	if ( ((arp->ar_hln != dev->addr_len)&& !(dev->flags&IFF_LARP))|| arp->ar_pln != 4)
+ 		goto freeskb;
+ 
+ 	memset(NEIGH_CB(skb), 0, sizeof(struct neighbour_cb));
+@@ -1345,6 +1507,7 @@ static void arp_format_neigh_entry(struc
+ 	struct net_device *dev = n->dev;
+ 	int hatype = dev->type;
+ 
++       	struct larp_data *ldata = NULL;
+ 	read_lock(&n->lock);
+ 	/* Convert hardware address to XX:XX:XX:XX ... form. */
+ #if IS_ENABLED(CONFIG_AX25)
+@@ -1364,8 +1527,9 @@ static void arp_format_neigh_entry(struc
+ 	}
+ #endif
+ 	sprintf(tbuf, "%pI4", n->primary_key);
+-	seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s\n",
+-		   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name);
++	ldata = (struct larp_data *)(n->opaque_data);
++	seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %d,    %d,    %d\n",
++		   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(ldata?ldata->label:0),(ldata?ldata->metric:0),(ldata?ldata->ident:0));
+ 	read_unlock(&n->lock);
+ }
+ 
+@@ -1386,7 +1550,7 @@ static int arp_seq_show(struct seq_file
+ {
+ 	if (v == SEQ_START_TOKEN) {
+ 		seq_puts(seq, "IP address       HW type     Flags       "
+-			      "HW address            Mask     Device\n");
++			 "HW address            Mask     Device    Label   Metric   Id\n");
+ 	} else {
+ 		struct neigh_seq_state *state = seq->private;
+ 
