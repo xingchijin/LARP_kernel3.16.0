@@ -1,0 +1,18 @@
+# arch	version		flavour		installedname			suffix	bdep
+amd64	3.16.0-45	generic		3.16.0-45-generic		-	
+
+i386	3.16.0-45	generic		3.16.0-45-generic		-	
+
+armhf	3.16.0-45	generic		3.16.0-45-generic		-
+
+armhf	3.16.0-45	generic-lpae		3.16.0-45-generic-lpae		-
+
+arm64	3.16.0-45	generic		3.16.0-45-generic		-
+
+ppc64el	3.16.0-45	generic		3.16.0-45-generic		-
+
+# Ports
+# arch	version		flavour		installedname			suffix	bdep
+powerpc	3.16.0-45	powerpc-smp	3.16.0-45-powerpc-smp	-	
+powerpc	3.16.0-45	powerpc64-smp	3.16.0-45-powerpc64-smp	-	
+powerpc 3.16.0-45	powerpc-e500mc	3.16.0-45-powerpc-e500mc	-	
