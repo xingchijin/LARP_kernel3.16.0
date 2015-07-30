@@ -35,10 +35,10 @@ struct larp_label_hdr
     ar_entropy:1,
     ar_label_5:5;
 #endif
-
+#if 0
   __be32 ar_metric;
   __be32 ar_ident;
-
+#endif
 
 }__packed;
 

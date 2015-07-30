@@ -188,13 +188,16 @@ struct neigh_table arp_tbl = {
 	.gc_thresh3	= 1024,
 };
 /* LARP functions & data structures*/
-
-struct larp_data{
+struct larp_label{
   char valid;
   char entropy;
   int label;
-  int metric;
-  int ident;
+}
+struct larp_data{
+  u32  metric;
+  int lst_len;
+  struct larp_label *l_stack;
+  //int ident;
 };
 
 
@@ -204,7 +207,7 @@ int get_label_from_neigh(void *opaque)
   ldata = (struct larp_data *)opaque;
   return ldata->label;
 }
-
+#if 0
 void larp_update_neighbour(struct neighbour *neigh, char valid, int label, int metric, char entropy, int instance_ident)
 {
   struct larp_data *ldata = NULL;
@@ -214,6 +217,16 @@ void larp_update_neighbour(struct neighbour *neigh, char valid, int label, int m
   ldata->metric = metric;
   ldata->entropy = entropy;
   ldata->ident = instance_ident; 
+  return;
+}
+#endif
+void larp_update_neighbour(struct neighbour *neigh,struct larp_label* lst,int lst_len,u32 metric)
+{
+  struct larp_data *ldata = NULL;
+  ldata = (struct larp_data *)neigh->opaque_data;
+  ldata->l_stack = lst;
+  ldata->metric = metric;
+  ldata->lst_len = lst_len;
   return;
 }
 EXPORT_SYMBOL(arp_tbl);

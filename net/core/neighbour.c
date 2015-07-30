@@ -908,6 +908,7 @@ void neigh_destroy(struct neighbour *neigh)
 	neigh_parms_put(neigh->parms);
 
 	if(neigh->opaque_data){
+	  kfree(neigh->opaque_data->l_stack);
 	  kfree(neigh->opaque_data);
 	  neigh->opaque_data = NULL;
 	}
@@ -1369,6 +1370,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 
 	if (flags & NEIGH_UPDATE_F_IS_LARP) {
 
+#if 0
 	  struct larp_hw_hdr * hw_hdr = NULL;
 	  struct larp_label_hdr *label_hdr = NULL;
 
@@ -1409,7 +1411,52 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 		 label, metric, valid, instance_ident, entropy_cap);
 
 	  larp_update_neighbour(neigh, valid, label, metric, entropy_cap, instance_ident);
+#endif
+		struct larp_label_hdr *label_hdr = NULL;
+		unsigned char * lst_ptr = NULL;
+		unsigned char * m_ptr = NULL;
+		unsigned char lst_len = -1;
+		unsigned char metric_len = -1;
+		unsigned char lst_type = 0;
+		unsigned char metric_type = 0;
+		
+		lst_ptr = (unsigned char *)__lladdr + ( larp_hdr_len(dev) - sizeof(struct arphdr));
+		lst_type = *lst_ptr;
+		lst_len  = *(lst_ptr+1);
+		lst_ptr += 2;
+		/* check invalid label stack type and len value*/
+	 	if((lst_type != LARP_STACK_TYPE)||(lst_len <0 || lst_len%3 != 0)){
+			goto out;
+		} 	
 
+		/* start parsing labels*/
+		label_hdr = (struct larp_label_hdr *)lst_ptr;
+		int labels_num = lst_len % 3;
+		int count;
+		struct larp_label *labels_ptr = (struct larp_label *)kmalloc(sizeof(struct larp_label)*labels_num, GFP_ATOMIC);
+		for(count=0;count<labels_num;count ++){
+			 labels_ptr->label = (label_hdr->ar_label_h7 << 13) + (label_hdr->ar_label_mid << 5) + (label_hdr->ar_label_5);
+			 labels_ptr->metric = label_hdr->ar_metric;
+        		 labels_ptr->entropy_cap = label_hdr->ar_entropy;
+			 labels_ptr ++;
+			 label_hdr ++;
+		}	
+		lst_ptr += lst_len;
+	
+		/* start parsing metric */
+		metric_ptr = lst_ptr;
+		m_type = *metric_ptr;
+		metric_len = *(metric_ptr+1);
+		metric_ptr += 2;
+		
+		/* check metric type and len, so far just discard if invalid */
+		if(m_type != LARP_METRIC_TYPE || (metric_len < 0 || metric_len != 4))
+			goto out; 
+
+		u32 metric = *((u32*)metric_ptr);
+		metric = be32_to_cpu(metric);// is it right ?
+		
+		larp_update_neighbour(neigh, labels_ptr, metric);
 	}
 
 	/* Compare new lladdr with cached one */
