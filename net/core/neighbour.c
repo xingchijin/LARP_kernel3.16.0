@@ -1412,15 +1412,66 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 
 	  larp_update_neighbour(neigh, valid, label, metric, entropy_cap, instance_ident);
 #endif
+		unsigned char *TLV_field= NULL;
+
 		struct larp_label_hdr *label_hdr = NULL;
-		unsigned char * lst_ptr = NULL;
-		unsigned char * m_ptr = NULL;
+		struct larp_label *labels_ptr = NULL;
+		
+		int label_num = 0 ;
+		u32 metric = 0;
+
+		unsigned char TLV_len = -1;
 		unsigned char lst_len = -1;
 		unsigned char metric_len = -1;
+
+		unsigned char TLV_type = 0;
 		unsigned char lst_type = 0;
 		unsigned char metric_type = 0;
 		
-		lst_ptr = (unsigned char *)__lladdr + ( larp_hdr_len(dev) - sizeof(struct arphdr));
+		TLV_field = (unsigned char *)__lladdr + ( larp_hdr_len(dev) - sizeof(struct arphdr));
+		
+		/*now any error occurs when parsing labels and metric, just discard this parcket*/
+		int num;
+		for(num=0;num<2;num++){
+			TLV_type = *TLV_field ;
+			TLV_len = *(TLV_field + 1);
+
+			switch(TLV_type){
+				case TLV_LST:
+					lst_len = TLV_len;
+					if( lst_len < 0 || lst_len %3 !=0 )
+						goto out;
+					TLV_field += 2;
+					label_num = lst_len %3;
+					label_hdr = (struct larp_label_hdr *)TLV_field ;
+					labels_ptr = (struct larp_label *)kmalloc(sizeof(struct larp_label)*labels_num, GFP_ATOMIC);
+
+					int count ;
+					for(count=0;count<labels_num;count ++){
+						 labels_ptr->label = (label_hdr->ar_label_h7 << 12) + (label_hdr->ar_label_mid << 4) + (label_hdr->ar_label_5);
+        					 labels_ptr->entropy_cap = label_hdr->ar_entropy;
+						 labels_ptr ++;
+						 label_hdr ++;
+					}	
+					TLV_field += lst_len;
+					break;
+
+				case TLV_ATT:
+					metric_len = TLV_len;
+					if( metric_len < 0 || metric_len != 4 ) 
+						goto out;
+					TLV_field +=2;
+					metric = *((u32 *)TLV_field); 	
+					metric = be32_to_cpu(metric);// is it right ?
+					TLV_field += metric_len;
+					break;
+				default: 
+				 	goto out;		
+					
+			}
+		}
+		larp_update_neighbour(neigh, labels_ptr, metric);
+	#if 0	
 		lst_type = *lst_ptr;
 		lst_len  = *(lst_ptr+1);
 		lst_ptr += 2;
@@ -1454,8 +1505,9 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 
 		u32 metric = *((u32*)metric_ptr);
 		metric = be32_to_cpu(metric);// is it right ?
+	#endif
 		
-		larp_update_neighbour(neigh, labels_ptr, metric);
+
 	}
 
 	/* Compare new lladdr with cached one */
