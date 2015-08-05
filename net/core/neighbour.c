@@ -1328,9 +1328,11 @@ static void myhexdump(void *ptr, int buflen) {
   }
 }
 
-
+#if 0
 void larp_update_neighbour(struct neighbour *neigh, char valid, int label, int metric, char entropy, int instance_ident);
+#endif
 
+void larp_update_neighbour(struct neighbour *neigh,struct larp_label* lst,int lst_len,u32 metric);
 
 int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 		 u32 flags)
@@ -1426,8 +1428,6 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 		unsigned char metric_len = -1;
 
 		unsigned char TLV_type = 0;
-		unsigned char lst_type = 0;
-		unsigned char metric_type = 0;
 		
 		TLV_field = (unsigned char *)__lladdr + ( larp_hdr_len(dev) - sizeof(struct arphdr));
 		
@@ -1450,7 +1450,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 					int count ;
 					for(count=0;count<labels_num;count ++){
 						 labels_ptr->label = (label_hdr->ar_label_h7 << 12) + (label_hdr->ar_label_mid << 4) + (label_hdr->ar_label_5);
-        					 labels_ptr->entropy_cap = label_hdr->ar_entropy;
+        					 labels_ptr->entropy = label_hdr->ar_entropy;
 						 labels_ptr ++;
 						 label_hdr ++;
 					}	
@@ -1471,7 +1471,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 					
 			}
 		}
-		larp_update_neighbour(neigh, labels_ptr, metric);
+		larp_update_neighbour(neigh, labels_ptr,lst_len, metric);
 	#if 0	
 		lst_type = *lst_ptr;
 		lst_len  = *(lst_ptr+1);

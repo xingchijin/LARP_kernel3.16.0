@@ -8,7 +8,7 @@ struct larp_label{
   char valid;
   char entropy;
   int label;
-}
+};
 struct larp_data{
   u32  metric;
   int lst_len;
