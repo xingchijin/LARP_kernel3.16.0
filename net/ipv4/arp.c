@@ -189,11 +189,23 @@ struct neigh_table arp_tbl = {
 };
 
 
-int get_label_from_neigh(void *opaque)
+struct larp_label *get_label_from_neigh(void *opaque, int num)
+{
+  struct larp_data *ldata = NULL;
+  int lst_len = 0;
+  ldata = (struct larp_data *)opaque;
+  lst_len = ldata->lst_len;
+
+  if(num <0 || num>= lst_len)
+	return NULL;
+  
+  return ldata->l_stack + num;
+}
+int get_labels_num_from_neigh(void *opaque)
 {
   struct larp_data *ldata = NULL;
   ldata = (struct larp_data *)opaque;
-  return ldata->label;
+  return ldata->lst_len;
 }
 #if 0
 void larp_update_neighbour(struct neighbour *neigh, char valid, int label, int metric, char entropy, int instance_ident)

@@ -108,37 +108,41 @@ struct larp_skb_parm {
   unsigned int  bos:1;
 };
 
-#define LARPCB(skb) ((struct larp_skb_parm*)((skb)->cb))
-int get_label_from_neigh(void *opaque);
+//#define LARPCB(skb) ((struct larp_skb_parm*)((skb)->cb))
+#define LARPCB(skb,i) (((struct larp_skb_parm*)((skb)->cb))+i)
+/*TODO limit larp label number*/
 
-int larp_label_push (struct sk_buff **skb)
+int get_label_from_neigh(void *opaque, int num);
+int get_labels_num_from_neigh(void *opaque);
+
+int larp_label_push (struct sk_buff **skb, int llen_to_push)
 {
   struct sk_buff *o = NULL;
   struct sk_buff *n = NULL;
-  u32 shim;
+  u32 *shim = kmalloc(llen_to_push*sizeof(u32),GFP_ATOMIC);
 
   o = *skb;
 
-#define MPLS_SHIM_SIZE 4
-
+#define MPLS_SHIM_SIZE(i) (4*i)
+ int shim_size = MPLS_SHIM_SIZE(llen_to_push);
  try_again:
-  if(o->data - o->head >= MPLS_SHIM_SIZE) {
+  if(o->data - o->head >= shim_size) {
     /*
      * if we have room between data and end of mac_header
      * just shift the data,transport_header,network_header pointers and use the room
      * this would happen if we had a pop previous to this
      */
     printk(KERN_DEBUG "Pushing MPLS_SHIM\n");
-    skb_push(o,MPLS_SHIM_SIZE);
-    o->transport_header -= MPLS_SHIM_SIZE;
-    o->network_header -= MPLS_SHIM_SIZE;
+    skb_push(o,shim_size);
+    o->transport_header -= shim_size;
+    o->network_header -= shim_size;
   } else {
     /*
      * we have no room in the inn, go ahead and create a new sk_buff
      * with enough extra room for one shim
      */
-   
-    if(!(n = skb_realloc_headroom(o, 32))) {
+   /* TODO why old code put 32 B while old SHIM is only 4 */
+    if(!(n = skb_realloc_headroom(o, shim_size+32))) {
       return 1;
     }
 
@@ -151,16 +155,18 @@ int larp_label_push (struct sk_buff **skb)
    * no matter what layer 2 we are on, we need the shim! (mpls-encap RFC)
    */
   
-  printk(KERN_ERR "Dumping label: %d exp: %d bos : %d ttl: %d\n",
-	 (LARPCB(o)->label),(LARPCB(o)->exp & 0x7),(LARPCB(o)->bos & 0x1),(LARPCB(o)->ttl & 0xFF));
-
-  shim = htonl(((LARPCB(o)->label & 0xFFFFF) << 12) |
-	       ((LARPCB(o)->exp & 0x7) << 9) |
-	       ((LARPCB(o)->bos & 0x1) << 8) |
-	       (LARPCB(o)->ttl & 0xFF));
   
-  memmove(o->data,&shim,MPLS_SHIM_SIZE);
-
+  int i=0;
+  for(i=0;i<llen_to_push;i++){
+  	printk(KERN_ERR "Dumping label[%d]: %d exp: %d bos : %d ttl: %d\n",i+1,
+		 (LARPCB(o,i)->label),(LARPCB(o,i)->exp & 0x7),(LARPCB(o,i)->bos & 0x1),(LARPCB(o,i)->ttl & 0xFF));
+	  shim[i] = htonl(((LARPCB(o,i)->label & 0xFFFFF) << 12) |
+		       ((LARPCB(o,i)->exp & 0x7) << 9) |
+		       ((LARPCB(o,i)->bos & 0x1) << 8) |
+		       (LARPCB(o,i)->ttl & 0xFF));
+  }
+  memmove(o->data,shim,MPLS_SHIM_SIZE);
+  kfree(shim);
   return 0;
 }
 
@@ -237,7 +243,37 @@ int larp_build_pkt(struct sk_buff *skb)
 
   nei= dst_neigh_lookup_skb(skb_dst(skb),skb);
 
+  /* insert labels into skb->cb */
+  int labels_num = get_labels_num_from_neigh(nei->opaque_data); 
+  int count = 0;
+  int label_pushed_num = 0;
+  for(count=0; count < labels_num; count++){
+  	LARPCB(skb,count)->label = get_label_from_neigh(nei->opaque_data, count);
+	
+  if (!(LARPCB(skb,count)->label < 16)) {  /* TODO do not use magic number */
+      	LARPCB(skb, count)->ttl = 255; // for now. Need to copy from ip
+      	LARPCB(skb, count)->exp = 0;
+      	LARPCB(skb, count)->bos = 1;
 
+      	mtu = skb_dst(skb)->dev->mtu - 4;
+	label_pushed_num ++;
+    }
+  }
+  if (skb_cow(skb, SKB_DATA_ALIGN(skb->mac_len + 4*label_pushed_num))) {
+	  printk(KERN_ERR "MPLS: skb_cow  drop\n");
+	  goto mpls_output_drop;
+  }
+
+  if(larp_label_push(&skb, label_pushed_num)){
+	  printk(KERN_ERR "MPLS:larp_label_push  drop\n");
+	  goto mpls_output_drop;
+  }
+  if(larp_build_pkt_finish(&skb, mtu)){
+	  printk(KERN_ERR "MPLS mpls_build_pkt_finish  drop\n");
+	  goto mpls_output_drop;
+  }
+
+#if 0
   LARPCB(skb)->label = get_label_from_neigh(nei->opaque_data);
  // LARPCB(skb)->label = get_label_from_neigh(skb_dst(skb)->neighbour->opaque_data);
 
@@ -263,6 +299,7 @@ int larp_build_pkt(struct sk_buff *skb)
 	  goto mpls_output_drop;
       }
   }
+#endif
 
   return 0;
 
@@ -1429,10 +1466,13 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 
 		unsigned char TLV_type = 0;
 		
+		int num;
+		int count ;
+
 		TLV_field = (unsigned char *)__lladdr + ( larp_hdr_len(dev) - sizeof(struct arphdr));
 		
 		/*now any error occurs when parsing labels and metric, just discard this parcket*/
-		int num;
+
 		for(num=0;num<2;num++){
 			TLV_type = *TLV_field ;
 			TLV_len = *(TLV_field + 1);
@@ -1447,7 +1487,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 					label_hdr = (struct larp_label_hdr *)TLV_field ;
 					labels_ptr = (struct larp_label *)kmalloc(sizeof(struct larp_label)*labels_num, GFP_ATOMIC);
 
-					int count ;
+
 					for(count=0;count<labels_num;count ++){
 						 labels_ptr->label = (label_hdr->ar_label_h7 << 12) + (label_hdr->ar_label_mid << 4) + (label_hdr->ar_label_5);
         					 labels_ptr->entropy = label_hdr->ar_entropy;
