@@ -848,9 +848,8 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	}
 	memcpy(arp_ptr, &dest_ip, 4);
 
+	/* fill in some larp specific fields */
 	if ((type == ARPOP_REQUEST) && (dev->flags & IFF_LARP)){
-	  //return larp_create(type,ptype,dest_ip,dev,src_ip,
-	//		     dest_hw,src_hw,target_hw,0);
 		/* right now larp support only ETHERNET device*/
 		if( larp_create_v4(type, arp, lar_tha, dev) < 0)
 			goto out;

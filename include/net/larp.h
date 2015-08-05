@@ -1,6 +1,7 @@
 
 #include <net/arp.h>
-
+#define TLV_LST 1
+#define TLV_ATT 2
 
 struct larp_hw_hdr
 {
@@ -17,23 +18,21 @@ struct larp_hw_hdr
 struct larp_label_hdr
 {
 #if defined(__BIG_ENDIAN_BITFIELD)
-  unsigned char     ar_lvalid:1,
-    ar_label_h7:7;
+  unsigned char     ar_label_h7;
 
   unsigned char     ar_label_mid;
 
-  unsigned char     ar_label_5:5,
+  unsigned char     ar_label_5:4,
     ar_entropy:1,
-    mbz:2;
+    mbz:3;
 
 #elif defined(__LITTLE_ENDIAN_BITFIELD)
-  unsigned char     ar_label_h7:7,
-    ar_lvalid:1;
+  unsigned char     ar_label_h7;
 
   unsigned char      ar_label_mid;
-  unsigned char      mbz:2,
+  unsigned char      mbz:3,
     ar_entropy:1,
-    ar_label_5:5;
+    ar_label_5:4;
 #endif
 #if 0
   __be32 ar_metric;

@@ -1425,7 +1425,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 		lst_len  = *(lst_ptr+1);
 		lst_ptr += 2;
 		/* check invalid label stack type and len value*/
-	 	if((lst_type != LARP_STACK_TYPE)||(lst_len <0 || lst_len%3 != 0)){
+	 	if((lst_type != TLV_LST)||(lst_len <0 || lst_len%3 != 0)){
 			goto out;
 		} 	
 
@@ -1435,8 +1435,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 		int count;
 		struct larp_label *labels_ptr = (struct larp_label *)kmalloc(sizeof(struct larp_label)*labels_num, GFP_ATOMIC);
 		for(count=0;count<labels_num;count ++){
-			 labels_ptr->label = (label_hdr->ar_label_h7 << 13) + (label_hdr->ar_label_mid << 5) + (label_hdr->ar_label_5);
-			 labels_ptr->metric = label_hdr->ar_metric;
+			 labels_ptr->label = (label_hdr->ar_label_h7 << 12) + (label_hdr->ar_label_mid << 4) + (label_hdr->ar_label_5);
         		 labels_ptr->entropy_cap = label_hdr->ar_entropy;
 			 labels_ptr ++;
 			 label_hdr ++;
@@ -1450,7 +1449,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 		metric_ptr += 2;
 		
 		/* check metric type and len, so far just discard if invalid */
-		if(m_type != LARP_METRIC_TYPE || (metric_len < 0 || metric_len != 4))
+		if(m_type != TLV_ATT || (metric_len < 0 || metric_len != 4))
 			goto out; 
 
 		u32 metric = *((u32*)metric_ptr);
