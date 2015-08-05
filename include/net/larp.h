@@ -3,6 +3,19 @@
 #define TLV_LST 1
 #define TLV_ATT 2
 
+/* LARP functions & data structures*/
+struct larp_label{
+  char valid;
+  char entropy;
+  int label;
+}
+struct larp_data{
+  u32  metric;
+  int lst_len;
+  struct larp_label *l_stack;
+  //int ident;
+};
+
 struct larp_hw_hdr
 {
   __be16          ar_hrd;         /* format of hardware address   */

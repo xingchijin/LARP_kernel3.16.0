@@ -187,18 +187,6 @@ struct neigh_table arp_tbl = {
 	.gc_thresh2	= 512,
 	.gc_thresh3	= 1024,
 };
-/* LARP functions & data structures*/
-struct larp_label{
-  char valid;
-  char entropy;
-  int label;
-}
-struct larp_data{
-  u32  metric;
-  int lst_len;
-  struct larp_label *l_stack;
-  //int ident;
-};
 
 
 int get_label_from_neigh(void *opaque)

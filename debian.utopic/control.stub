@@ -389,220 +389,6 @@ Description: Metapackage depending on kernel udebs
  for easier version and migration tracking.
 
 
-Package: linux-image-3.16.0-45-powerpc-e500mc
-Architecture: powerpc
-Section: kernel
-Priority: optional
-Pre-Depends: dpkg (>= 1.10.24)
-Provides: linux-image, linux-image-3.0, fuse-module, redhat-cluster-modules, ivtv-modules
-Depends: ${misc:Depends}, ${shlibs:Depends}, initramfs-tools (>= 0.36ubuntu6), module-init-tools (>= 3.3-pre11-4ubuntu3)
-Conflicts: hotplug (<< 0.0.20040105-1)
-Recommends: grub-ieee1275
-Suggests: fdutils, linux-lts-utopic-tools, linux-headers-3.16.0-45-powerpc-e500mc
-Description: Linux kernel image for version 3.16.0 on 32-bit Freescale Power e500mc
- This package contains the Linux kernel image for version 3.16.0 on
- 32-bit Freescale Power e500mc.
- .
- Also includes the corresponding System.map file, the modules built by the
- packager, and scripts that try to ensure that the system is not left in an
- unbootable state after an update.
- .
- Supports 32-bit Freescale Power e500mc processors.
- .
- Geared toward server systems.
- .
- You likely do not want to install this package directly. Instead, install
- the linux-powerpc-e500mc meta-package, which will ensure that upgrades work
- correctly, and that supporting packages are also installed.
-
-Package: linux-image-extra-3.16.0-45-powerpc-e500mc
-Architecture: powerpc
-Section: kernel
-Priority: optional
-Depends: ${misc:Depends}, ${shlibs:Depends}, linux-image-3.16.0-45-powerpc-e500mc, crda (>=1.1.1-1ubuntu2) | wireless-crda
-Description: Linux kernel extra modules for version 3.16.0 on 32-bit Freescale Power e500mc
- This package contains the Linux kernel extra modules for version 3.16.0 on
- 32-bit Freescale Power e500mc.
- .
- Also includes the corresponding System.map file, the modules built by the
- packager, and scripts that try to ensure that the system is not left in an
- unbootable state after an update.
- .
- Supports 32-bit Freescale Power e500mc processors.
- .
- Geared toward server systems.
- .
- You likely do not want to install this package directly. Instead, install
- the linux-powerpc-e500mc meta-package, which will ensure that upgrades work
- correctly, and that supporting packages are also installed.
-
-Package: linux-headers-3.16.0-45-powerpc-e500mc
-Architecture: powerpc
-Section: devel
-Priority: optional
-Depends: ${misc:Depends}, linux-headers-3.16.0-45, ${shlibs:Depends}
-Provides: linux-headers, linux-headers-3.0
-Description: Linux kernel headers for version 3.16.0 on 32-bit Freescale Power e500mc
- This package provides kernel header files for version 3.16.0 on
- 32-bit Freescale Power e500mc.
- .
- This is for sites that want the latest kernel headers.  Please read
- /usr/share/doc/linux-headers-3.16.0-45/debian.README.gz for details.
-
-Package: linux-image-3.16.0-45-powerpc-e500mc-dbgsym
-Architecture: powerpc
-Section: devel
-Priority: optional
-Depends: ${misc:Depends}
-Provides: linux-debug
-Description: Linux kernel debug image for version 3.16.0 on 32-bit Freescale Power e500mc
- This package provides a kernel debug image for version 3.16.0 on
- 32-bit Freescale Power e500mc.
- .
- This is for sites that wish to debug the kernel.
- .
- The kernel image contained in this package is NOT meant to boot from. It
- is uncompressed, and unstripped. This package also includes the
- unstripped modules.
-
-Package: linux-tools-3.16.0-45-powerpc-e500mc
-Architecture: powerpc
-Section: devel
-Priority: optional
-Depends: ${misc:Depends}, linux-lts-utopic-tools-3.16.0-45
-Description: Linux kernel version specific tools for version 3.16.0-45
- This package provides the architecture dependant parts for kernel
- version locked tools (such as perf and x86_energy_perf_policy) for
- version 3.16.0-45 on
- 64 bit x86.
-
-Package: linux-cloud-tools-3.16.0-45-powerpc-e500mc
-Architecture: powerpc
-Section: devel
-Priority: optional
-Depends: ${misc:Depends}, linux-lts-utopic-cloud-tools-3.16.0-45
-Description: Linux kernel version specific cloud tools for version 3.16.0-45
- This package provides the architecture dependant parts for kernel
- version locked tools for cloud for version 3.16.0-45 on
- 64 bit x86.
-
-Package: linux-lts-utopic-udebs-powerpc-e500mc
-XC-Package-Type: udeb
-Section: debian-installer
-Architecture: powerpc
-Depends: ${udeb:Depends}
-Description: Metapackage depending on kernel udebs
- This package depends on the all udebs that the kernel build generated,
- for easier version and migration tracking.
-
-
-Package: linux-image-3.16.0-45-powerpc-smp
-Architecture: powerpc
-Section: kernel
-Priority: optional
-Pre-Depends: dpkg (>= 1.10.24)
-Provides: linux-image, linux-image-3.0, fuse-module, redhat-cluster-modules, ivtv-modules
-Depends: ${misc:Depends}, ${shlibs:Depends}, initramfs-tools (>= 0.36ubuntu6), module-init-tools (>= 3.3-pre11-4ubuntu3)
-Conflicts: hotplug (<< 0.0.20040105-1)
-Recommends: yaboot
-Suggests: fdutils, linux-lts-utopic-tools, linux-headers-3.16.0-45-powerpc-smp
-Description: Linux kernel image for version 3.16.0 on 32-bit PowerPC SMP
- This package contains the Linux kernel image for version 3.16.0 on
- 32-bit PowerPC SMP.
- .
- Also includes the corresponding System.map file, the modules built by the
- packager, and scripts that try to ensure that the system is not left in an
- unbootable state after an update.
- .
- Supports 32-bit PowerPC SMP processors.
- .
- Geared toward desktop or server systems.
- .
- You likely do not want to install this package directly. Instead, install
- the linux-powerpc-smp meta-package, which will ensure that upgrades work
- correctly, and that supporting packages are also installed.
-
-Package: linux-image-extra-3.16.0-45-powerpc-smp
-Architecture: powerpc
-Section: kernel
-Priority: optional
-Depends: ${misc:Depends}, ${shlibs:Depends}, linux-image-3.16.0-45-powerpc-smp, crda (>=1.1.1-1ubuntu2) | wireless-crda
-Description: Linux kernel extra modules for version 3.16.0 on 32-bit PowerPC SMP
- This package contains the Linux kernel extra modules for version 3.16.0 on
- 32-bit PowerPC SMP.
- .
- Also includes the corresponding System.map file, the modules built by the
- packager, and scripts that try to ensure that the system is not left in an
- unbootable state after an update.
- .
- Supports 32-bit PowerPC SMP processors.
- .
- Geared toward desktop or server systems.
- .
- You likely do not want to install this package directly. Instead, install
- the linux-powerpc-smp meta-package, which will ensure that upgrades work
- correctly, and that supporting packages are also installed.
-
-Package: linux-headers-3.16.0-45-powerpc-smp
-Architecture: powerpc
-Section: devel
-Priority: optional
-Depends: ${misc:Depends}, linux-headers-3.16.0-45, ${shlibs:Depends}
-Provides: linux-headers, linux-headers-3.0
-Description: Linux kernel headers for version 3.16.0 on 32-bit PowerPC SMP
- This package provides kernel header files for version 3.16.0 on
- 32-bit PowerPC SMP.
- .
- This is for sites that want the latest kernel headers.  Please read
- /usr/share/doc/linux-headers-3.16.0-45/debian.README.gz for details.
-
-Package: linux-image-3.16.0-45-powerpc-smp-dbgsym
-Architecture: powerpc
-Section: devel
-Priority: optional
-Depends: ${misc:Depends}
-Provides: linux-debug
-Description: Linux kernel debug image for version 3.16.0 on 32-bit PowerPC SMP
- This package provides a kernel debug image for version 3.16.0 on
- 32-bit PowerPC SMP.
- .
- This is for sites that wish to debug the kernel.
- .
- The kernel image contained in this package is NOT meant to boot from. It
- is uncompressed, and unstripped. This package also includes the
- unstripped modules.
-
-Package: linux-tools-3.16.0-45-powerpc-smp
-Architecture: powerpc
-Section: devel
-Priority: optional
-Depends: ${misc:Depends}, linux-lts-utopic-tools-3.16.0-45
-Description: Linux kernel version specific tools for version 3.16.0-45
- This package provides the architecture dependant parts for kernel
- version locked tools (such as perf and x86_energy_perf_policy) for
- version 3.16.0-45 on
- 64 bit x86.
-
-Package: linux-cloud-tools-3.16.0-45-powerpc-smp
-Architecture: powerpc
-Section: devel
-Priority: optional
-Depends: ${misc:Depends}, linux-lts-utopic-cloud-tools-3.16.0-45
-Description: Linux kernel version specific cloud tools for version 3.16.0-45
- This package provides the architecture dependant parts for kernel
- version locked tools for cloud for version 3.16.0-45 on
- 64 bit x86.
-
-Package: linux-lts-utopic-udebs-powerpc-smp
-XC-Package-Type: udeb
-Section: debian-installer
-Architecture: powerpc
-Depends: ${udeb:Depends}
-Description: Metapackage depending on kernel udebs
- This package depends on the all udebs that the kernel build generated,
- for easier version and migration tracking.
-
-
 Package: linux-image-3.16.0-45-powerpc64-emb
 Architecture: powerpc
 Section: kernel
@@ -808,6 +594,220 @@ Description: Linux kernel version specific cloud tools for version 3.16.0-45
  64 bit x86.
 
 Package: linux-lts-utopic-udebs-powerpc64-smp
+XC-Package-Type: udeb
+Section: debian-installer
+Architecture: powerpc
+Depends: ${udeb:Depends}
+Description: Metapackage depending on kernel udebs
+ This package depends on the all udebs that the kernel build generated,
+ for easier version and migration tracking.
+
+
+Package: linux-image-3.16.0-45-powerpc-e500mc
+Architecture: powerpc
+Section: kernel
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-3.0, fuse-module, redhat-cluster-modules, ivtv-modules
+Depends: ${misc:Depends}, ${shlibs:Depends}, initramfs-tools (>= 0.36ubuntu6), module-init-tools (>= 3.3-pre11-4ubuntu3)
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: grub-ieee1275
+Suggests: fdutils, linux-lts-utopic-tools, linux-headers-3.16.0-45-powerpc-e500mc
+Description: Linux kernel image for version 3.16.0 on 32-bit Freescale Power e500mc
+ This package contains the Linux kernel image for version 3.16.0 on
+ 32-bit Freescale Power e500mc.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports 32-bit Freescale Power e500mc processors.
+ .
+ Geared toward server systems.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-powerpc-e500mc meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-image-extra-3.16.0-45-powerpc-e500mc
+Architecture: powerpc
+Section: kernel
+Priority: optional
+Depends: ${misc:Depends}, ${shlibs:Depends}, linux-image-3.16.0-45-powerpc-e500mc, crda (>=1.1.1-1ubuntu2) | wireless-crda
+Description: Linux kernel extra modules for version 3.16.0 on 32-bit Freescale Power e500mc
+ This package contains the Linux kernel extra modules for version 3.16.0 on
+ 32-bit Freescale Power e500mc.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports 32-bit Freescale Power e500mc processors.
+ .
+ Geared toward server systems.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-powerpc-e500mc meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-3.16.0-45-powerpc-e500mc
+Architecture: powerpc
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, linux-headers-3.16.0-45, ${shlibs:Depends}
+Provides: linux-headers, linux-headers-3.0
+Description: Linux kernel headers for version 3.16.0 on 32-bit Freescale Power e500mc
+ This package provides kernel header files for version 3.16.0 on
+ 32-bit Freescale Power e500mc.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-headers-3.16.0-45/debian.README.gz for details.
+
+Package: linux-image-3.16.0-45-powerpc-e500mc-dbgsym
+Architecture: powerpc
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}
+Provides: linux-debug
+Description: Linux kernel debug image for version 3.16.0 on 32-bit Freescale Power e500mc
+ This package provides a kernel debug image for version 3.16.0 on
+ 32-bit Freescale Power e500mc.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
+
+Package: linux-tools-3.16.0-45-powerpc-e500mc
+Architecture: powerpc
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, linux-lts-utopic-tools-3.16.0-45
+Description: Linux kernel version specific tools for version 3.16.0-45
+ This package provides the architecture dependant parts for kernel
+ version locked tools (such as perf and x86_energy_perf_policy) for
+ version 3.16.0-45 on
+ 64 bit x86.
+
+Package: linux-cloud-tools-3.16.0-45-powerpc-e500mc
+Architecture: powerpc
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, linux-lts-utopic-cloud-tools-3.16.0-45
+Description: Linux kernel version specific cloud tools for version 3.16.0-45
+ This package provides the architecture dependant parts for kernel
+ version locked tools for cloud for version 3.16.0-45 on
+ 64 bit x86.
+
+Package: linux-lts-utopic-udebs-powerpc-e500mc
+XC-Package-Type: udeb
+Section: debian-installer
+Architecture: powerpc
+Depends: ${udeb:Depends}
+Description: Metapackage depending on kernel udebs
+ This package depends on the all udebs that the kernel build generated,
+ for easier version and migration tracking.
+
+
+Package: linux-image-3.16.0-45-powerpc-smp
+Architecture: powerpc
+Section: kernel
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-3.0, fuse-module, redhat-cluster-modules, ivtv-modules
+Depends: ${misc:Depends}, ${shlibs:Depends}, initramfs-tools (>= 0.36ubuntu6), module-init-tools (>= 3.3-pre11-4ubuntu3)
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: yaboot
+Suggests: fdutils, linux-lts-utopic-tools, linux-headers-3.16.0-45-powerpc-smp
+Description: Linux kernel image for version 3.16.0 on 32-bit PowerPC SMP
+ This package contains the Linux kernel image for version 3.16.0 on
+ 32-bit PowerPC SMP.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports 32-bit PowerPC SMP processors.
+ .
+ Geared toward desktop or server systems.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-powerpc-smp meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-image-extra-3.16.0-45-powerpc-smp
+Architecture: powerpc
+Section: kernel
+Priority: optional
+Depends: ${misc:Depends}, ${shlibs:Depends}, linux-image-3.16.0-45-powerpc-smp, crda (>=1.1.1-1ubuntu2) | wireless-crda
+Description: Linux kernel extra modules for version 3.16.0 on 32-bit PowerPC SMP
+ This package contains the Linux kernel extra modules for version 3.16.0 on
+ 32-bit PowerPC SMP.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports 32-bit PowerPC SMP processors.
+ .
+ Geared toward desktop or server systems.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-powerpc-smp meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-3.16.0-45-powerpc-smp
+Architecture: powerpc
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, linux-headers-3.16.0-45, ${shlibs:Depends}
+Provides: linux-headers, linux-headers-3.0
+Description: Linux kernel headers for version 3.16.0 on 32-bit PowerPC SMP
+ This package provides kernel header files for version 3.16.0 on
+ 32-bit PowerPC SMP.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-headers-3.16.0-45/debian.README.gz for details.
+
+Package: linux-image-3.16.0-45-powerpc-smp-dbgsym
+Architecture: powerpc
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}
+Provides: linux-debug
+Description: Linux kernel debug image for version 3.16.0 on 32-bit PowerPC SMP
+ This package provides a kernel debug image for version 3.16.0 on
+ 32-bit PowerPC SMP.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
+
+Package: linux-tools-3.16.0-45-powerpc-smp
+Architecture: powerpc
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, linux-lts-utopic-tools-3.16.0-45
+Description: Linux kernel version specific tools for version 3.16.0-45
+ This package provides the architecture dependant parts for kernel
+ version locked tools (such as perf and x86_energy_perf_policy) for
+ version 3.16.0-45 on
+ 64 bit x86.
+
+Package: linux-cloud-tools-3.16.0-45-powerpc-smp
+Architecture: powerpc
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, linux-lts-utopic-cloud-tools-3.16.0-45
+Description: Linux kernel version specific cloud tools for version 3.16.0-45
+ This package provides the architecture dependant parts for kernel
+ version locked tools for cloud for version 3.16.0-45 on
+ 64 bit x86.
+
+Package: linux-lts-utopic-udebs-powerpc-smp
 XC-Package-Type: udeb
 Section: debian-installer
 Architecture: powerpc

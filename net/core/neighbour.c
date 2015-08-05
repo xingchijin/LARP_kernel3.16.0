@@ -213,6 +213,7 @@ larp_build_pkt_finish(struct sk_buff **pskb, int mtu)
 int larp_build_pkt(struct sk_buff *skb)
 {
   int mtu;
+  struct neighbour* nei ;
 
   if (unlikely(!skb_dst(skb))) {
     printk(KERN_ERR "MPLS: No dst in skb\n");
@@ -233,7 +234,7 @@ int larp_build_pkt(struct sk_buff *skb)
     }
   }
 
-  struct neighbour* nei ;
+
   nei= dst_neigh_lookup_skb(skb_dst(skb),skb);
 
 
@@ -908,7 +909,7 @@ void neigh_destroy(struct neighbour *neigh)
 	neigh_parms_put(neigh->parms);
 
 	if(neigh->opaque_data){
-	  kfree(neigh->opaque_data->l_stack);
+	  kfree( ( (struct larp_data*)(neigh->opaque_data) )->l_stack);
 	  kfree(neigh->opaque_data);
 	  neigh->opaque_data = NULL;
 	}
@@ -1417,7 +1418,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 		struct larp_label_hdr *label_hdr = NULL;
 		struct larp_label *labels_ptr = NULL;
 		
-		int label_num = 0 ;
+		int labels_num = 0 ;
 		u32 metric = 0;
 
 		unsigned char TLV_len = -1;
@@ -1442,7 +1443,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 					if( lst_len < 0 || lst_len %3 !=0 )
 						goto out;
 					TLV_field += 2;
-					label_num = lst_len %3;
+					labels_num = lst_len %3;
 					label_hdr = (struct larp_label_hdr *)TLV_field ;
 					labels_ptr = (struct larp_label *)kmalloc(sizeof(struct larp_label)*labels_num, GFP_ATOMIC);
 
