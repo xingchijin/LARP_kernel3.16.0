@@ -613,20 +613,34 @@ static inline int arp_fwd_pvlan(struct in_device *in_dev,
 /*
  *	Interface to link layer: send routine and receive handler.
  */
-
+int larp_create_v4(int type,struct arphdr *arp,u8 *lar_tha ,struct net_device *dev){
+	if(arp == NULL || dev ==NULL || lar_tha == NULL){
+		return -1;
+	}
+	if(dev->type == ARPHRD_ETHER && dev->addr_len == ETH_ALEN ) {
+		arp->ar_hrd = htons(ARPHRD_LARP);
+		arp->ar_pro = htons(ETH_P_IP);
+		arp->ar_hln = dev->addr_len;
+		arp->ar_pln = 4;//not find the define yet
+		arp->ar_op = htons(type);
+		memset(lar_tha,0,dev->addr_len);
+		return 0;
+	}
+	return -1;
+} 
+#if 0
 
 /*
  *	Create an larp packet. If (dest_hw == NULL), we create a broadcast
  *	message.
  */
-struct sk_buff *larp_create(int type, int ptype, __be32 dest_ip,
+int larp_create_v4(int type, int ptype, __be32 dest_ip,
 			   struct net_device *dev, __be32 src_ip,
 			   const unsigned char *dest_hw,
 			   const unsigned char *src_hw,
 			   const unsigned char *target_hw,
 			   int label)
 {
-
 
 
   struct sk_buff *skb;
@@ -661,7 +675,6 @@ struct sk_buff *larp_create(int type, int ptype, __be32 dest_ip,
    */
   if (dev_hard_header(skb, dev, ptype, dest_hw, src_hw, skb->len) < 0)
     goto out;
-
 
 
 
@@ -720,7 +733,7 @@ out:
 	kfree_skb(skb);
 	return NULL;
 }
-
+#endif
 
 /*
  *	Create an arp packet. If (dest_hw == NULL), we create a broadcast
@@ -738,10 +751,7 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	int hlen = LL_RESERVED_SPACE(dev);
 	int tlen = dev->needed_tailroom;
 
-	if ((type == ARPOP_REQUEST) && (dev->flags & IFF_LARP)){
-	  return larp_create(type,ptype,dest_ip,dev,src_ip,
-			     dest_hw,src_hw,target_hw,0);
-	}
+	unsigned char *lar_tha;
 
 	/*
 	 *	Allocate a buffer
@@ -821,6 +831,9 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	memcpy(arp_ptr, &src_ip, 4);
 	arp_ptr += 4;
 
+	/* get larp target address pointer */
+	lar_tha = arp_ptr;	
+
 	switch (dev->type) {
 #if IS_ENABLED(CONFIG_FIREWIRE_NET)
 	case ARPHRD_IEEE1394:
@@ -834,6 +847,15 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 		arp_ptr += dev->addr_len;
 	}
 	memcpy(arp_ptr, &dest_ip, 4);
+
+	if ((type == ARPOP_REQUEST) && (dev->flags & IFF_LARP)){
+	  //return larp_create(type,ptype,dest_ip,dev,src_ip,
+	//		     dest_hw,src_hw,target_hw,0);
+		/* right now larp support only ETHERNET device*/
+		if( larp_create_v4(type, arp, lar_tha, dev) < 0)
+			goto out;
+
+	}
 
 	return skb;
 
