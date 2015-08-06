@@ -615,12 +615,16 @@ static inline int arp_fwd_pvlan(struct in_device *in_dev,
  */
 int larp_create_v4(int type,struct arphdr *arp,u8 *lar_tha ,struct net_device *dev){
 	if(arp == NULL || dev ==NULL || lar_tha == NULL){
+		printk(KERN_ERR "In larp_create_v4 Null pointer");
 		return -1;
 	}
 	if(dev->type == ARPHRD_ETHER && dev->addr_len == ETH_ALEN ) {
 		arp->ar_hrd = htons(ARPHRD_LARP);
 		arp->ar_pro = htons(ETH_P_IP);
 		arp->ar_hln = dev->addr_len;
+		
+		printk(KERN_ERR "In larp_create_v4 ar_hln: %d", arp->ar_hln);
+
 		arp->ar_pln = 4;//not find the define yet
 		arp->ar_op = htons(type);
 		memset(lar_tha,0,dev->addr_len);
@@ -628,7 +632,7 @@ int larp_create_v4(int type,struct arphdr *arp,u8 *lar_tha ,struct net_device *d
 	}
 	return -1;
 } 
-#if 0
+#if 0 
 
 /*
  *	Create an larp packet. If (dest_hw == NULL), we create a broadcast
@@ -1542,12 +1546,20 @@ static void arp_format_neigh_entry(struct seq_file *seq,
 				   struct neighbour *n)
 {
 	char hbuffer[HBUFFERLEN];
-	int k, j;
+	int k, j, h, m;
 	char tbuf[16];
 	struct net_device *dev = n->dev;
 	int hatype = dev->type;
 
        	struct larp_data *ldata = NULL;
+	struct larp_label *lbdata = NULL;
+	char *label_string = NULL;
+	char *s_ptr = label_string;
+	int label_s_len = 0;
+ 
+	int llen = 0;
+	int label =0;
+
 	read_lock(&n->lock);
 	/* Convert hardware address to XX:XX:XX:XX ... form. */
 #if IS_ENABLED(CONFIG_AX25)
@@ -1568,12 +1580,40 @@ static void arp_format_neigh_entry(struct seq_file *seq,
 #endif
 	sprintf(tbuf, "%pI4", n->primary_key);
 	ldata = (struct larp_data *)(n->opaque_data);
+	if(ldata == NULL) goto print;
+
+	llen = ldata->lst_len;
+	if(llen <=0) goto print;
+
+	label_s_len = llen * 8+1;
+	label_string = (char*)kmalloc(label_s_len,GFP_ATOMIC);
+	s_ptr = label_string;
+	lbdata = ldata->l_stack;
+
+	if(label_string ){
+		for(h=0; h<llen ;h++){
+			label = lbdata->label;
+			
+			for(m=0; m<7; m++){
+				s_ptr[6-m]= label%10 + ('0'-0);
+				label = label/10;
+			}	
+			lbdata ++;
+			s_ptr[7]=',';
+			s_ptr +=8;
+		}
+		*(s_ptr-1) = 0;
+		*s_ptr = 0;
+	}
+print:
 	//seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %d,    %d,    %d\n",
 	//	   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(ldata?ldata->label:0),(ldata?ldata->metric:0),(ldata?ldata->ident:0));
 	/*TODO:  show labels out*/
-	//seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %d,    %d,    %d\n",
-	//	   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(ldata?ldata->label:0),(ldata?ldata->metric:0),(ldata?ldata->ident:0));
+	seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %s,    %d\n",
+		   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(label_string?label_string:0),(ldata?ldata->metric:0));
 	read_unlock(&n->lock);
+	if(label_string)
+		kfree(label_string);
 }
 
 static void arp_format_pneigh_entry(struct seq_file *seq,
