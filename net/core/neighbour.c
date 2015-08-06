@@ -119,12 +119,12 @@ int larp_label_push (struct sk_buff **skb, int llen_to_push)
 {
   struct sk_buff *o = NULL;
   struct sk_buff *n = NULL;
+#define MPLS_SHIM_SIZE(i) (4*i)
+  int shim_size = MPLS_SHIM_SIZE(llen_to_push);
   u32 *shim = kmalloc(llen_to_push*sizeof(u32),GFP_ATOMIC);
 
   o = *skb;
 
-#define MPLS_SHIM_SIZE(i) (4*i)
- int shim_size = MPLS_SHIM_SIZE(llen_to_push);
  try_again:
   if(o->data - o->head >= shim_size) {
     /*
@@ -165,7 +165,7 @@ int larp_label_push (struct sk_buff **skb, int llen_to_push)
 		       ((LARPCB(o,i)->bos & 0x1) << 8) |
 		       (LARPCB(o,i)->ttl & 0xFF));
   }
-  memmove(o->data,shim,MPLS_SHIM_SIZE);
+  memmove(o->data,shim,shim_size);
   kfree(shim);
   return 0;
 }

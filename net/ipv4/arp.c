@@ -189,7 +189,7 @@ struct neigh_table arp_tbl = {
 };
 
 
-struct larp_label *get_label_from_neigh(void *opaque, int num)
+int get_label_from_neigh(void *opaque, int num)
 {
   struct larp_data *ldata = NULL;
   int lst_len = 0;
@@ -199,7 +199,7 @@ struct larp_label *get_label_from_neigh(void *opaque, int num)
   if(num <0 || num>= lst_len)
 	return NULL;
   
-  return ldata->l_stack + num;
+  return (ldata->l_stack + num)->label;
 }
 int get_labels_num_from_neigh(void *opaque)
 {
@@ -1568,8 +1568,11 @@ static void arp_format_neigh_entry(struct seq_file *seq,
 #endif
 	sprintf(tbuf, "%pI4", n->primary_key);
 	ldata = (struct larp_data *)(n->opaque_data);
-	seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %d,    %d,    %d\n",
-		   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(ldata?ldata->label:0),(ldata?ldata->metric:0),(ldata?ldata->ident:0));
+	//seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %d,    %d,    %d\n",
+	//	   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(ldata?ldata->label:0),(ldata?ldata->metric:0),(ldata?ldata->ident:0));
+	/*TODO:  show labels out*/
+	//seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %d,    %d,    %d\n",
+	//	   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(ldata?ldata->label:0),(ldata?ldata->metric:0),(ldata?ldata->ident:0));
 	read_unlock(&n->lock);
 }
 
