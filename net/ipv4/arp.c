@@ -197,7 +197,8 @@ int get_label_from_neigh(void *opaque, int num)
   lst_len = ldata->lst_len;
 
   if(num <0 || num>= lst_len)
-	return NULL;
+	return -1;
+printk(KERN_DEBUG "In get_label_from_neigh: Label[%d] is %d\n", num,(ldata->l_stack + num)->label);
   
   return (ldata->l_stack + num)->label;
 }
@@ -1580,10 +1581,16 @@ static void arp_format_neigh_entry(struct seq_file *seq,
 #endif
 	sprintf(tbuf, "%pI4", n->primary_key);
 	ldata = (struct larp_data *)(n->opaque_data);
-	if(ldata == NULL) goto print;
+	if(ldata == NULL){
+		printk(KERN_DEBUG "In arp_format_entry: opaque_data is NULL\n");
+		 goto print;
+	}
 
 	llen = ldata->lst_len;
-	if(llen <=0) goto print;
+	if(llen <=0) {
+		printk(KERN_DEBUG "In arp_format_entry: label Number[%d] < 0\n ",llen);
+		goto print;
+	}
 
 	label_s_len = llen * 8+1;
 	label_string = (char*)kmalloc(label_s_len,GFP_ATOMIC);
@@ -1609,7 +1616,7 @@ print:
 	//seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %d,    %d,    %d\n",
 	//	   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(ldata?ldata->label:0),(ldata?ldata->metric:0),(ldata?ldata->ident:0));
 	/*TODO:  show labels out*/
-	seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %s,    %d\n",
+	seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,     %s,    %d\n",
 		   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(label_string?label_string:0),(ldata?ldata->metric:0));
 	read_unlock(&n->lock);
 	if(label_string)
@@ -1633,7 +1640,7 @@ static int arp_seq_show(struct seq_file *seq, void *v)
 {
 	if (v == SEQ_START_TOKEN) {
 		seq_puts(seq, "IP address       HW type     Flags       "
-			 "HW address            Mask     Device    Label   Metric   Id\n");
+			 "HW address            Mask     Device    Label   Metric\n");
 	} else {
 		struct neigh_seq_state *state = seq->private;
 

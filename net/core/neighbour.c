@@ -1456,6 +1456,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 
 		struct larp_label_hdr *label_hdr = NULL;
 		struct larp_label *labels_ptr = NULL;
+		struct larp_label *label_stack = NULL;
 		
 		int labels_num = 0 ;
 		u32 metric = 0;
@@ -1473,45 +1474,52 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 		
 		/*now any error occurs when parsing labels and metric, just discard this parcket*/
 
+	  printk(KERN_DEBUG "neigh_update: enter_larp \n");
 		for(num=0;num<2;num++){
 			TLV_type = *TLV_field ;
 			TLV_len = *(TLV_field + 1);
+	  printk(KERN_DEBUG "neigh_update: Pass_TLV,round[%d],TLV_type[%d],TLV_len[%d]\n",num, TLV_type, TLV_len);
 
 			switch(TLV_type){
 				case TLV_LST:
 					lst_len = TLV_len;
+	  printk(KERN_DEBUG "neigh_update: label_len[%u] \n",lst_len);
 					if( lst_len < 0 || lst_len %3 !=0 )
 						goto out;
 					TLV_field += 2;
-					labels_num = lst_len %3;
+					labels_num = lst_len /3;
 					label_hdr = (struct larp_label_hdr *)TLV_field ;
-					labels_ptr = (struct larp_label *)kmalloc(sizeof(struct larp_label)*labels_num, GFP_ATOMIC);
-
+					label_stack = (struct larp_label *)kmalloc(sizeof(struct larp_label)*labels_num, GFP_ATOMIC);
+					labels_ptr = label_stack;
 
 					for(count=0;count<labels_num;count ++){
 						 labels_ptr->label = (label_hdr->ar_label_h7 << 12) + (label_hdr->ar_label_mid << 4) + (label_hdr->ar_label_5);
         					 labels_ptr->entropy = label_hdr->ar_entropy;
 						 labels_ptr ++;
 						 label_hdr ++;
+	  printk(KERN_DEBUG "neigh_update: label[%u][%x] Entropy[%d] \n",count,labels_ptr->label,(int)(labels_ptr->entropy));
 					}	
 					TLV_field += lst_len;
 					break;
 
 				case TLV_ATT:
 					metric_len = TLV_len;
+	  printk(KERN_DEBUG "neigh_update: metric_len[%u] \n",metric_len);
 					if( metric_len < 0 || metric_len != 4 ) 
 						goto out;
 					TLV_field +=2;
 					metric = *((u32 *)TLV_field); 	
 					metric = be32_to_cpu(metric);// is it right ?
+	  printk(KERN_DEBUG "neigh_update: metric[%x] \n",metric);
 					TLV_field += metric_len;
 					break;
 				default: 
+	  printk(KERN_DEBUG "neigh_update: type not matching \n");
 				 	goto out;		
 					
 			}
 		}
-		larp_update_neighbour(neigh, labels_ptr,lst_len, metric);
+		larp_update_neighbour(neigh, label_stack,labels_num, metric);
 	#if 0	
 		lst_type = *lst_ptr;
 		lst_len  = *(lst_ptr+1);
