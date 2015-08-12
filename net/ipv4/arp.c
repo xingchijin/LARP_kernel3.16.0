@@ -229,10 +229,27 @@ void larp_update_neighbour(struct neighbour *neigh,struct larp_label* lst,int ls
   printk(KERN_DEBUG "In larp_update_neighbour: metric_u32: %x\n", metric);
 
   struct larp_data *ldata = NULL;
+  struct larp_label *lbdata = NULL;
+
   ldata = (struct larp_data *)neigh->opaque_data;
-  ldata->l_stack = lst;
-  ldata->metric = metric;
-  ldata->lst_len = lst_len;
+  if(ldata == NULL) return;
+
+  lbdata = ldata->l_stack;
+  if(!lbdata){  
+  	ldata->l_stack = lst;
+  	ldata->metric = metric;
+  	ldata->lst_len = lst_len;
+  }else{
+	/* overwrite the label when old metric is not set or bigger */
+	if(ldata->metric ==0 || ldata->metric > metric){
+		kfree(ldata->l_stack);
+		ldata->l_stack = lst;
+		ldata->lst_len = lst_len;
+		ldata->metric = metric;
+	}else{
+		kfree(lst);
+	}	
+  }
   return;
 }
 EXPORT_SYMBOL(arp_tbl);
