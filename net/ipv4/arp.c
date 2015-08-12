@@ -223,6 +223,11 @@ void larp_update_neighbour(struct neighbour *neigh, char valid, int label, int m
 #endif
 void larp_update_neighbour(struct neighbour *neigh,struct larp_label* lst,int lst_len,u32 metric)
 {
+  printk(KERN_DEBUG "In larp_update_neighbour: nei_ip: %pI4\n", neigh->primary_key);
+  printk(KERN_DEBUG "In larp_update_neighbour: lst_addr: %p\n", lst);
+  printk(KERN_DEBUG "In larp_update_neighbour: lst_len: %d\n", lst_len);
+  printk(KERN_DEBUG "In larp_update_neighbour: metric_u32: %x\n", metric);
+
   struct larp_data *ldata = NULL;
   ldata = (struct larp_data *)neigh->opaque_data;
   ldata->l_stack = lst;
@@ -355,8 +360,10 @@ static int arp_constructor(struct neighbour *neigh)
 		else
 			neigh->output = neigh->ops->output;
 
-		if(dev->flags&(IFF_LARP))
+		if(dev->flags&(IFF_LARP)){
 		  neigh->opaque_data = kmalloc(sizeof(struct larp_data), GFP_ATOMIC);
+		  memset(neigh->opaque_data,0,sizeof(struct larp_data));
+		}
 	}
 	return 0;
 }
@@ -1597,10 +1604,10 @@ static void arp_format_neigh_entry(struct seq_file *seq,
 	s_ptr = label_string;
 	lbdata = ldata->l_stack;
 
-	if(label_string ){
+	if(label_string && lbdata ){
 		for(h=0; h<llen ;h++){
 			label = lbdata->label;
-			
+			printk(KERN_DEBUG "in arp_format_entry connvert label[%d][%x] to string",h,label);	
 			for(m=0; m<7; m++){
 				s_ptr[6-m]= label%10 + ('0'-0);
 				label = label/10;
@@ -1616,7 +1623,7 @@ print:
 	//seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,      %d,    %d,    %d\n",
 	//	   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(ldata?ldata->label:0),(ldata?ldata->metric:0),(ldata?ldata->ident:0));
 	/*TODO:  show labels out*/
-	seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,     %s,    %d\n",
+	seq_printf(seq, "%-16s 0x%-10x0x%-10x%s     *        %s,     %s,   0x%x\n",
 		   tbuf, hatype, arp_state_to_flags(n), hbuffer, dev->name,(label_string?label_string:0),(ldata?ldata->metric:0));
 	read_unlock(&n->lock);
 	if(label_string)

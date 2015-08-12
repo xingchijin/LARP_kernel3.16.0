@@ -1495,9 +1495,10 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 					for(count=0;count<labels_num;count ++){
 						 labels_ptr->label = (label_hdr->ar_label_h7 << 12) + (label_hdr->ar_label_mid << 4) + (label_hdr->ar_label_5);
         					 labels_ptr->entropy = label_hdr->ar_entropy;
+	  printk(KERN_DEBUG "neigh_update: label[%u][%x] Entropy[%d] \n",count,labels_ptr->label,(int)(labels_ptr->entropy));
 						 labels_ptr ++;
 						 label_hdr ++;
-	  printk(KERN_DEBUG "neigh_update: label[%u][%x] Entropy[%d] \n",count,labels_ptr->label,(int)(labels_ptr->entropy));
+
 					}	
 					TLV_field += lst_len;
 					break;
@@ -1515,10 +1516,13 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 					break;
 				default: 
 	  printk(KERN_DEBUG "neigh_update: type not matching \n");
-				 	goto out;		
+				 	break;		
 					
 			}
 		}
+  printk(KERN_DEBUG "In neigh_update: lst_addr: %p\n", label_stack);
+  printk(KERN_DEBUG "In neigh_update: lst_len: %d\n", labels_num);
+  printk(KERN_DEBUG "In neigh_update: metric_u32: %x\n", metric);
 		larp_update_neighbour(neigh, label_stack,labels_num, metric);
 	#if 0	
 		lst_type = *lst_ptr;
