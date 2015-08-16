@@ -250,13 +250,13 @@ int larp_build_pkt(struct sk_buff *skb)
   for(count=0; count < labels_num; count++){
   	LARPCB(skb,count)->label = get_label_from_neigh(nei->opaque_data, count);
 	
-  if (!(LARPCB(skb,count)->label < 16)) {  /* TODO do not use magic number */
-      	LARPCB(skb, count)->ttl = 255; // for now. Need to copy from ip
-      	LARPCB(skb, count)->exp = 0;
-      	LARPCB(skb, count)->bos = 1;
+    if (!(LARPCB(skb,count)->label < 16)) {  /* TODO do not use magic number */
+        	LARPCB(skb, count)->ttl = 255; // for now. Need to copy from ip
+        	LARPCB(skb, count)->exp = 0;
+        	LARPCB(skb, count)->bos = 1;
 
-      	mtu = skb_dst(skb)->dev->mtu - 4;
-	label_pushed_num ++;
+        	mtu = skb_dst(skb)->dev->mtu - 4;
+  	        label_pushed_num ++;
     }
   }
   if (skb_cow(skb, SKB_DATA_ALIGN(skb->mac_len + 4*label_pushed_num))) {
@@ -1467,8 +1467,10 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 
 		unsigned char TLV_type = 0;
 		
+		int label_tmp=0;
 		int num;
 		int count ;
+		int label_stored = 0;
 
 		TLV_field = (unsigned char *)__lladdr + ( larp_hdr_len(dev) - sizeof(struct arphdr));
 		
@@ -1493,13 +1495,22 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 					labels_ptr = label_stack;
 
 					for(count=0;count<labels_num;count ++){
-						 labels_ptr->label = (label_hdr->ar_label_h7 << 12) + (label_hdr->ar_label_mid << 4) + (label_hdr->ar_label_5);
+						 label_tmp = (label_hdr->ar_label_h7 << 12) + (label_hdr->ar_label_mid << 4) + (label_hdr->ar_label_5);
+						 if(label_tmp < 16){
+							label_hdr++;
+							continue;
+						 }
+
+						 labels_ptr->label = label_tmp;
         					 labels_ptr->entropy = label_hdr->ar_entropy;
 	  printk(KERN_DEBUG "neigh_update: label[%u][%x] Entropy[%d] \n",count,labels_ptr->label,(int)(labels_ptr->entropy));
 						 labels_ptr ++;
 						 label_hdr ++;
-
+						 label_stored ++;
 					}	
+					if(label_stored < labels_num){
+						/* TODO !*/
+					}
 					TLV_field += lst_len;
 					break;
 
