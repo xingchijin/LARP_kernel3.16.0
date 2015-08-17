@@ -247,18 +247,24 @@ int larp_build_pkt(struct sk_buff *skb)
   int labels_num = get_labels_num_from_neigh(nei->opaque_data); 
   int count = 0;
   int label_pushed_num = 0;
+  int l_value = 0;
   for(count=0; count < labels_num; count++){
-  	LARPCB(skb,count)->label = get_label_from_neigh(nei->opaque_data, count);
+    l_value = get_label_from_neigh(nei->opaque_data, count);
 	
-    if (!(LARPCB(skb,count)->label < 16)) {  /* TODO do not use magic number */
-        	LARPCB(skb, count)->ttl = 255; // for now. Need to copy from ip
-        	LARPCB(skb, count)->exp = 0;
-        	LARPCB(skb, count)->bos = 1;
+    if (!(l_value < 16)) {  /* TODO do not use magic number */
+		LARPCB(skb, label_pushed_num)->label = l_value;
+        	LARPCB(skb, label_pushed_num)->ttl = 255; // for now. Need to copy from ip
+        	LARPCB(skb, label_pushed_num)->exp = 0;
+
+        	LARPCB(skb, label_pushed_num)->bos = 0;
 
         	mtu = skb_dst(skb)->dev->mtu - 4;
   	        label_pushed_num ++;
     }
   }
+  /* if this is the end of label stack, put bos 1*/	
+  LARPCB(skb, label_pushed_num - 1)->bos = 1;
+  
   if (skb_cow(skb, SKB_DATA_ALIGN(skb->mac_len + 4*label_pushed_num))) {
 	  printk(KERN_ERR "MPLS: skb_cow  drop\n");
 	  goto mpls_output_drop;
@@ -1457,6 +1463,7 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 		struct larp_label_hdr *label_hdr = NULL;
 		struct larp_label *labels_ptr = NULL;
 		struct larp_label *label_stack = NULL;
+		struct larp_label *final_label_stack = NULL;
 		
 		int labels_num = 0 ;
 		u32 metric = 0;
@@ -1509,7 +1516,11 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 						 label_stored ++;
 					}	
 					if(label_stored < labels_num){
-						/* TODO !*/
+						final_label_stack = (struct larp_label *)kmalloc(sizeof(struct larp_label)*label_stored, GFP_ATOMIC);
+						memcpy(final_label_stack,label_stack,sizeof(struct larp_label)*label_stored);
+						kfree(label_stack);
+					}else{
+						final_label_stack = label_stack;
 					}
 					TLV_field += lst_len;
 					break;
@@ -1532,9 +1543,9 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 			}
 		}
   printk(KERN_DEBUG "In neigh_update: lst_addr: %p\n", label_stack);
-  printk(KERN_DEBUG "In neigh_update: lst_len: %d\n", labels_num);
+  printk(KERN_DEBUG "In neigh_update: lst_len: %d actual stored label_stored: %d\n", labels_num, label_stored);
   printk(KERN_DEBUG "In neigh_update: metric_u32: %x\n", metric);
-		larp_update_neighbour(neigh, label_stack,labels_num, metric);
+		larp_update_neighbour(neigh, final_label_stack,label_stored, metric);
 	#if 0	
 		lst_type = *lst_ptr;
 		lst_len  = *(lst_ptr+1);
