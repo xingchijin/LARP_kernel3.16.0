@@ -208,19 +208,7 @@ int get_labels_num_from_neigh(void *opaque)
   ldata = (struct larp_data *)opaque;
   return ldata->lst_len;
 }
-#if 0
-void larp_update_neighbour(struct neighbour *neigh, char valid, int label, int metric, char entropy, int instance_ident)
-{
-  struct larp_data *ldata = NULL;
-  ldata = (struct larp_data *)neigh->opaque_data;
-  ldata->valid = valid;
-  ldata->label = label;
-  ldata->metric = metric;
-  ldata->entropy = entropy;
-  ldata->ident = instance_ident; 
-  return;
-}
-#endif
+
 void larp_update_neighbour(struct neighbour *neigh,struct larp_label* lst,int lst_len,u32 metric)
 {
   printk(KERN_DEBUG "In larp_update_neighbour: nei_ip: %pI4\n", neigh->primary_key);
@@ -240,8 +228,8 @@ void larp_update_neighbour(struct neighbour *neigh,struct larp_label* lst,int ls
   	ldata->metric = metric;
   	ldata->lst_len = lst_len;
   }else{
-	/* overwrite the label when old metric is not set or bigger */
-	if(ldata->metric ==0 || ldata->metric > metric){
+	/* overwrite the label when old metric is not set or bigger or equal */
+	if(ldata->metric ==0 || ldata->metric >= metric){
 		kfree(ldata->l_stack);
 		ldata->l_stack = lst;
 		ldata->lst_len = lst_len;
@@ -638,6 +626,11 @@ static inline int arp_fwd_pvlan(struct in_device *in_dev,
 /*
  *	Interface to link layer: send routine and receive handler.
  */
+
+/*
+ *  fill some larp request header fields
+ *  if it's dev type is not ETHER or addr
+ */
 int larp_create_v4(int type,struct arphdr *arp,u8 *lar_tha ,struct net_device *dev){
 	if(arp == NULL || dev ==NULL || lar_tha == NULL){
 		printk(KERN_ERR "In larp_create_v4 Null pointer");
@@ -657,112 +650,6 @@ int larp_create_v4(int type,struct arphdr *arp,u8 *lar_tha ,struct net_device *d
 	}
 	return -1;
 } 
-#if 0 
-
-/*
- *	Create an larp packet. If (dest_hw == NULL), we create a broadcast
- *	message.
- */
-int larp_create_v4(int type, int ptype, __be32 dest_ip,
-			   struct net_device *dev, __be32 src_ip,
-			   const unsigned char *dest_hw,
-			   const unsigned char *src_hw,
-			   const unsigned char *target_hw,
-			   int label)
-{
-
-
-  struct sk_buff *skb;
-  struct arphdr *arp;
-  unsigned char *arp_ptr;
-  struct larp_hw_hdr *hw_hdr;
-  struct larp_label_hdr *label_hdr;
-
-  int hlen = LL_RESERVED_SPACE(dev);
-  int tlen = dev->needed_tailroom;
-  /*
-   *      Allocate a buffer
-   */
-
-  skb = alloc_skb(larp_hdr_len(dev) + hlen+tlen, GFP_ATOMIC);
-  //skb = alloc_skb(larp_hdr_len(dev) + LL_ALLOCATED_SPACE(dev), GFP_ATOMIC);
-  if (skb == NULL)
-    return NULL;
-
-  skb_reserve(skb, LL_RESERVED_SPACE(dev));
-  skb_reset_network_header(skb);
-  arp = (struct arphdr *) skb_put(skb, larp_hdr_len(dev));
-  skb->dev = dev;
-  skb->protocol = htons(ETH_P_ARP);
-  if (src_hw == NULL)
-    src_hw = dev->dev_addr;
-  if (dest_hw == NULL)
-    dest_hw = dev->broadcast;
-
-  /*
-   *      Fill the device header for the ARP frame
-   */
-  if (dev_hard_header(skb, dev, ptype, dest_hw, src_hw, skb->len) < 0)
-    goto out;
-
-
-
-  /* Arp header */
-  arp->ar_hrd = htons(ARPHRD_LARP);
-  arp->ar_pro = htons(ETH_P_IP);
-  //arp->ar_hln = MPLS_LABEL_HDR_SIZE;
-  arp->ar_hln = dev->addr_len;/*version 3*/
-  arp->ar_pln = 4;
-  arp->ar_op = htons(type);
-  arp_ptr=(unsigned char *)(arp+1);
-
-#if 0
-  /* Sender hardware address -- fixed hw part*/
-
-  hw_hdr = (struct larp_hw_hdr *)arp_ptr;
-  hw_hdr->ar_hrd = htons(dev->type);
-  hw_hdr->ar_hln = dev->addr_len;
-  hw_hdr->mbz = 0;
-  arp_ptr += sizeof(struct larp_hw_hdr);
-#endif
-
-  /* Sender hardware address -- variable hw address part*/
-
-  memcpy(arp_ptr, src_hw, dev->addr_len);
-  arp_ptr += dev->addr_len;
-
-#if 0
-  /* Sender hardware address -- label part*/
-
-  label_hdr = (struct larp_label_hdr *)arp_ptr;
-  memset((void *)label_hdr,0,sizeof(struct larp_label_hdr));
-  arp_ptr+= sizeof(struct larp_label_hdr);
-#endif
-
-  /* source protocol address */
-  memcpy(arp_ptr, &src_ip, 4);
-  arp_ptr += 4;
-
-
-  /* target hardware address */
-
-  //memset(arp_ptr, 0, MPLS_LABEL_HDR_SIZE);
-  memset(arp_ptr, 0, dev->addr_len);/*version 3*/
-  //arp_ptr += MPLS_LABEL_HDR_SIZE;
-  arp_ptr += dev->addr_len;/*version 3*/
-
-  /* target protocol address */
-  memcpy(arp_ptr, &dest_ip, 4);
-
-
-  return skb;
-
-
-out:
-	kfree_skb(skb);
-	return NULL;
-}
-#endif
 
 /*
  *	Create an arp packet. If (dest_hw == NULL), we create a broadcast
@@ -1621,6 +1508,7 @@ static void arp_format_neigh_entry(struct seq_file *seq,
 	s_ptr = label_string;
 	lbdata = ldata->l_stack;
 
+	/*write all the labels in decimal way into proc*/
 	if(label_string && lbdata ){
 		for(h=0; h<llen ;h++){
 			label = lbdata->label;

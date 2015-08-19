@@ -98,7 +98,7 @@ static DEFINE_RWLOCK(neigh_tbl_lock);
 
 
 /* LARP : TODO Remove and make as module */
-
+/* LARP : TODO Deal with large packets that have multiple skb_buff s */
 
 
 struct larp_skb_parm {
@@ -220,6 +220,11 @@ int larp_build_pkt(struct sk_buff *skb)
 {
   int mtu;
   struct neighbour* nei ;
+  /* insert labels into skb->cb */
+  int labels_num = 0; 
+  int count = 0;
+  int label_pushed_num = 0;
+  int l_value = 0;
 
   if (unlikely(!skb_dst(skb))) {
     printk(KERN_ERR "MPLS: No dst in skb\n");
@@ -242,12 +247,11 @@ int larp_build_pkt(struct sk_buff *skb)
 
 
   nei= dst_neigh_lookup_skb(skb_dst(skb),skb);
+  labels_num = get_labels_num_from_neigh(nei->opaque_data);
 
-  /* insert labels into skb->cb */
-  int labels_num = get_labels_num_from_neigh(nei->opaque_data); 
-  int count = 0;
-  int label_pushed_num = 0;
-  int l_value = 0;
+  /* if there is no label for this neigh */
+  if(labels_num <= 0) return 0; 
+  /* move the labels into mpls units into skb->cb*/
   for(count=0; count < labels_num; count++){
     l_value = get_label_from_neigh(nei->opaque_data, count);
 	
@@ -262,6 +266,7 @@ int larp_build_pkt(struct sk_buff *skb)
   	        label_pushed_num ++;
     }
   }
+
   /* if this is the end of label stack, put bos 1*/	
   LARPCB(skb, label_pushed_num - 1)->bos = 1;
   
@@ -279,33 +284,6 @@ int larp_build_pkt(struct sk_buff *skb)
 	  goto mpls_output_drop;
   }
 
-#if 0
-  LARPCB(skb)->label = get_label_from_neigh(nei->opaque_data);
- // LARPCB(skb)->label = get_label_from_neigh(skb_dst(skb)->neighbour->opaque_data);
-
-  if (!(LARPCB(skb)->label < 16)) {  /* TODO do not use magic number */
-      LARPCB(skb)->ttl = 255; // for now. Need to copy from ip
-      LARPCB(skb)->exp = 0;
-      LARPCB(skb)->bos = 1;
-
-      mtu = skb_dst(skb)->dev->mtu - 4;
-
-      if (skb_cow(skb, SKB_DATA_ALIGN(skb->mac_len + 4))) {
-	  printk(KERN_ERR "MPLS: skb_cow  drop\n");
-	  goto mpls_output_drop;
-      }
-
-      if(larp_label_push(&skb)){
-	  printk(KERN_ERR "MPLS:larp_label_push  drop\n");
-	  goto mpls_output_drop;
-      }
-
-      if(larp_build_pkt_finish(&skb, mtu)){
-	  printk(KERN_ERR "MPLS mpls_build_pkt_finish  drop\n");
-	  goto mpls_output_drop;
-      }
-  }
-#endif
 
   return 0;
 
@@ -1386,6 +1364,28 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 	struct net_device *dev;
 	int update_isrouter = 0;
         u8 * lladdr = __lladdr;
+	
+	/*larp variables*/
+	unsigned char *TLV_field= NULL;
+
+	struct larp_label_hdr *label_hdr = NULL;
+	struct larp_label *labels_ptr = NULL;
+	struct larp_label *label_stack = NULL;
+	struct larp_label *final_label_stack = NULL;
+	
+	int labels_num = 0 ;
+	u32 metric = 0;
+
+	unsigned char TLV_len = -1;
+	unsigned char lst_len = -1;
+	unsigned char metric_len = -1;
+
+	unsigned char TLV_type = 0;
+	
+	int label_tmp=0;
+	int num;
+	int count ;
+	int label_stored = 0;
 
 	write_lock_bh(&neigh->lock);
 
@@ -1415,69 +1415,6 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
 	}
 
 	if (flags & NEIGH_UPDATE_F_IS_LARP) {
-
-#if 0
-	  struct larp_hw_hdr * hw_hdr = NULL;
-	  struct larp_label_hdr *label_hdr = NULL;
-
-	  unsigned char *hdr_ptr;
-	  int htype = 0;
-	  int  hlen = 0;
-	  int label = -1;
-	  int metric = 0;
-	  char entropy_cap = 0;
-	  char valid = 0;
-	  int instance_ident = -1;
-	  
-
-	  hw_hdr = (struct larp_hw_hdr *)__lladdr;
-          printk(KERN_ERR "hw_hdr : %p\n",hw_hdr);
-	  htype = hw_hdr->ar_hrd;
-	  hlen = hw_hdr->ar_hln;
-	  hdr_ptr = lladdr = (unsigned char *)(hw_hdr+1);
-	  printk(KERN_ERR "hdr_ptr : %p\n",hdr_ptr);
-
-	  hdr_ptr += hlen;
-	  printk(KERN_ERR "hdr_ptr : %p hlen: %d\n",hdr_ptr,hlen);
-
-
-	  // hdr_ptr should now point to label part
-	  label_hdr = (struct larp_label_hdr *)hdr_ptr;
-	  printk(KERN_ERR "label_hdr : %p\n",label_hdr);
-	  printk(KERN_ERR " hi  %d mid %d lo %d\n",(label_hdr->ar_label_h7),(label_hdr->ar_label_mid),(label_hdr->ar_label_5));
-	  label = (label_hdr->ar_label_h7 << 13) + (label_hdr->ar_label_mid << 5) + (label_hdr->ar_label_5);
-	  metric = label_hdr->ar_metric;
-          entropy_cap = label_hdr->ar_entropy;
-          valid = label_hdr->ar_lvalid;
-          instance_ident = label_hdr->ar_ident;
-
-	  myhexdump(__lladdr,21);
-
-	  printk(KERN_ERR "LARP:: label: %d metric: %d valid : %d instance ident: %d entr: %d\n",
-		 label, metric, valid, instance_ident, entropy_cap);
-
-	  larp_update_neighbour(neigh, valid, label, metric, entropy_cap, instance_ident);
-#endif
-		unsigned char *TLV_field= NULL;
-
-		struct larp_label_hdr *label_hdr = NULL;
-		struct larp_label *labels_ptr = NULL;
-		struct larp_label *label_stack = NULL;
-		struct larp_label *final_label_stack = NULL;
-		
-		int labels_num = 0 ;
-		u32 metric = 0;
-
-		unsigned char TLV_len = -1;
-		unsigned char lst_len = -1;
-		unsigned char metric_len = -1;
-
-		unsigned char TLV_type = 0;
-		
-		int label_tmp=0;
-		int num;
-		int count ;
-		int label_stored = 0;
 
 		TLV_field = (unsigned char *)__lladdr + ( larp_hdr_len(dev) - sizeof(struct arphdr));
 		
@@ -1546,42 +1483,6 @@ int neigh_update(struct neighbour *neigh, u8 *__lladdr, u8 new,
   printk(KERN_DEBUG "In neigh_update: lst_len: %d actual stored label_stored: %d\n", labels_num, label_stored);
   printk(KERN_DEBUG "In neigh_update: metric_u32: %x\n", metric);
 		larp_update_neighbour(neigh, final_label_stack,label_stored, metric);
-	#if 0	
-		lst_type = *lst_ptr;
-		lst_len  = *(lst_ptr+1);
-		lst_ptr += 2;
-		/* check invalid label stack type and len value*/
-	 	if((lst_type != TLV_LST)||(lst_len <0 || lst_len%3 != 0)){
-			goto out;
-		} 	
-
-		/* start parsing labels*/
-		label_hdr = (struct larp_label_hdr *)lst_ptr;
-		int labels_num = lst_len % 3;
-		int count;
-		struct larp_label *labels_ptr = (struct larp_label *)kmalloc(sizeof(struct larp_label)*labels_num, GFP_ATOMIC);
-		for(count=0;count<labels_num;count ++){
-			 labels_ptr->label = (label_hdr->ar_label_h7 << 12) + (label_hdr->ar_label_mid << 4) + (label_hdr->ar_label_5);
-        		 labels_ptr->entropy_cap = label_hdr->ar_entropy;
-			 labels_ptr ++;
-			 label_hdr ++;
-		}	
-		lst_ptr += lst_len;
-	
-		/* start parsing metric */
-		metric_ptr = lst_ptr;
-		m_type = *metric_ptr;
-		metric_len = *(metric_ptr+1);
-		metric_ptr += 2;
-		
-		/* check metric type and len, so far just discard if invalid */
-		if(m_type != TLV_ATT || (metric_len < 0 || metric_len != 4))
-			goto out; 
-
-		u32 metric = *((u32*)metric_ptr);
-		metric = be32_to_cpu(metric);// is it right ?
-	#endif
-		
 
 	}
 
@@ -1793,11 +1694,11 @@ int neigh_resolve_output(struct neighbour *neigh, struct sk_buff *skb)
 
 	if (!dst)
 		goto discard;
-
+#if 0
   struct neighbour* nei ;
   nei= dst_neigh_lookup_skb(skb_dst(skb),skb);
-
-	if(nei->opaque_data && nei->dev->flags&IFF_LARP){
+#endif
+	if(neigh->opaque_data && neigh->dev->flags&IFF_LARP){
 	  printk(KERN_DEBUG "pkt_send neigh_resolve_output called \n");
 	  if(larp_build_pkt(skb)){
 	    rc = -EINVAL;
@@ -1843,9 +1744,6 @@ int neigh_connected_output(struct neighbour *neigh, struct sk_buff *skb)
 	struct net_device *dev = neigh->dev;
 	unsigned int seq;
 	int err;
-        //struct dst_entry* dst=skb_dst(skb);
-        //struct neighbour* nei ;
-        //nei= dst_neigh_lookup_skb(skb_dst(skb),skb);
 
 	if(neigh->opaque_data && neigh->dev->flags&IFF_LARP){
 	  printk(KERN_DEBUG "pkt_send neigh_connected_output called\n");
